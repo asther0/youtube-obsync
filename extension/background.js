@@ -38,10 +38,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const response = await sendVideoStateMessage(tab.id);
       sendResponse({ ...response, tab });
     } catch {
-      sendResponse({
-        ok: false,
-        error: "Recarga la pestaña de YouTube para activar Obsync en este video."
-      });
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ["youtube-content.js"]
+        });
+        const response = await sendVideoStateMessage(tab.id);
+        sendResponse({ ...response, tab });
+      } catch (error) {
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : "Recarga la pestaña de YouTube para activar Obsync."
+        });
+      }
     }
   });
 

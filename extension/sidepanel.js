@@ -35,7 +35,10 @@ const elements = {
   message: document.querySelector("#message")
 };
 
-init();
+init().catch((error) => {
+  setMessage(error instanceof Error ? error.message : "No pude iniciar Obsync.");
+  render();
+});
 
 async function init() {
   await loadSettings();
@@ -55,8 +58,11 @@ async function init() {
   });
 
   window.setInterval(async () => {
-    await refreshVideo({ silent: true });
-    render();
+    try {
+      await refreshVideo({ silent: true });
+      render();
+    } catch {
+    }
   }, 1200);
 }
 
