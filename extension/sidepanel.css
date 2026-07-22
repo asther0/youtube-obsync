@@ -154,6 +154,12 @@ input {
   padding: 0 10px;
 }
 
+.note-title {
+  height: 40px;
+  font-size: 14px;
+  font-weight: 850;
+}
+
 textarea {
   min-height: 136px;
   resize: vertical;

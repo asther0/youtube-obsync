@@ -9,7 +9,8 @@ const state = {
   cropDrag: null,
   lastCapture: null,
   noteStatus: "pendiente",
-  connectionStatus: "missing"
+  connectionStatus: "missing",
+  titleTouched: false
 };
 
 const OLD_DEFAULT_FOLDERS = "Inbox, Learning, Ideas, Frameworks, Examples";
@@ -27,6 +28,7 @@ const elements = {
   connectionDot: document.querySelector("#connectionDot"),
   videoTitle: document.querySelector("#videoTitle"),
   range: document.querySelector("#range"),
+  noteTitle: document.querySelector("#noteTitle"),
   folderSelect: document.querySelector("#folderSelect"),
   userNote: document.querySelector("#userNote"),
   noteBtn: document.querySelector("#noteBtn"),
@@ -77,6 +79,9 @@ async function init() {
   window.addEventListener("pointermove", moveCropDrag);
   window.addEventListener("pointerup", endCropDrag);
   elements.cropImage.addEventListener("load", seedDefaultCrop);
+  elements.noteTitle.addEventListener("input", () => {
+    state.titleTouched = true;
+  });
   for (const pill of elements.statusPills) {
     pill.addEventListener("click", () => {
       state.noteStatus = pill.dataset.status || "pendiente";
@@ -92,6 +97,8 @@ async function init() {
     elements.settingsPanel.hidden = !elements.settingsPanel.hidden;
     elements.settingsToggle.setAttribute("aria-expanded", String(!elements.settingsPanel.hidden));
   });
+  const settings = await getSettings();
+  if (settings.obsidianToken) testConnection({ silent: true });
 
   window.setInterval(async () => {
     try {
@@ -286,12 +293,27 @@ async function takeScreenshot() {
   }
 
   try {
+    setMessage("Selecciona el área en la página.");
+    const region = await selectScreenRegion();
+    if (!region) {
+      setMessage("Recorte cancelado.");
+      return;
+    }
+
     const dataUrl = await captureVisibleDataUrl();
-    openCropper(dataUrl, state.video?.currentTime ?? 0);
-    setMessage("Selecciona el área que quieres guardar.");
+    const cropped = await cropImageDataUrlByViewportRect(dataUrl, region);
+    addScreenshot(cropped, state.video?.currentTime ?? 0);
+    setMessage("Recorte añadido.");
     render();
   } catch (error) {
-    setMessage(error instanceof Error ? error.message : "No pude capturar la imagen.");
+    try {
+      const dataUrl = await captureVisibleDataUrl();
+      openCropper(dataUrl, state.video?.currentTime ?? 0);
+      setMessage("Selecciona el área en el panel.");
+      render();
+    } catch {
+      setMessage(error instanceof Error ? error.message : "No pude capturar la imagen.");
+    }
   }
 }
 
@@ -324,6 +346,8 @@ async function savePageNote() {
     await chrome.storage.sync.set({ selectedFolder });
     await writePageNoteToObsidian(settings, state.page, state.screenshots, selectedFolder);
     state.lastCapture = null;
+    state.titleTouched = false;
+    elements.noteTitle.value = "";
     elements.userNote.value = "";
     setMessage(`Apunte guardado en ${selectedFolder}.`, "saved");
   } catch (error) {
@@ -361,6 +385,14 @@ async function captureVisibleDataUrl() {
   }
 
   return response.dataUrl;
+}
+
+async function selectScreenRegion() {
+  const response = await chrome.runtime.sendMessage({ type: "SELECT_SCREEN_REGION" });
+  if (!response?.ok) {
+    throw new Error(response?.error || "No pude abrir el recorte en la página.");
+  }
+  return response.region;
 }
 
 function addScreenshot(dataUrl, timestamp) {
@@ -513,6 +545,30 @@ async function cropImageDataUrl(dataUrl, displayRect) {
   return canvas.toDataURL("image/png");
 }
 
+async function cropImageDataUrlByViewportRect(dataUrl, region) {
+  const image = await loadImage(dataUrl);
+  const scaleX = image.naturalWidth / region.viewportWidth;
+  const scaleY = image.naturalHeight / region.viewportHeight;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(region.width * scaleX));
+  canvas.height = Math.max(1, Math.round(region.height * scaleY));
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("No pude preparar el recorte.");
+
+  context.drawImage(
+    image,
+    Math.round(region.x * scaleX),
+    Math.round(region.y * scaleY),
+    canvas.width,
+    canvas.height,
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+  return canvas.toDataURL("image/png");
+}
+
 function loadImage(dataUrl) {
   return new Promise((resolve, reject) => {
     const image = new Image();
@@ -562,6 +618,8 @@ async function saveClip() {
       transcriptMarkdown: capture.transcriptMarkdown
     };
     state.start = null;
+    state.titleTouched = false;
+    elements.noteTitle.value = "";
     elements.userNote.value = "";
     setMessage(`Extracto guardado en ${selectedFolder}.`, "saved");
   } catch (error) {
@@ -616,7 +674,7 @@ async function writeCaptureToObsidian(capture, settings, video, screenshots, sel
   for (const note of capture.notes) {
     const destinationFolder = captureFolder(selectedFolder || note.folder || DEFAULT_SETTINGS.selectedFolder, capturedAt);
     const markdown = buildMarkdown(note, capture, video, screenshotLinks, destinationFolder, capturedAt);
-    const path = `${destinationFolder}/${datedFilename(note.filename || note.title, capturedAt)}`;
+    const path = `${destinationFolder}/${datedFilename(currentNoteTitle(note.title), capturedAt)}`;
     await putVaultFile(settings, path, markdown, "text/markdown", "text");
   }
 }
@@ -626,7 +684,7 @@ async function writePageNoteToObsidian(settings, page, screenshots, selectedFold
   const destinationFolder = captureFolder(selectedFolder || DEFAULT_SETTINGS.selectedFolder, capturedAt);
   const attachmentFolder = "Attachments/obsync";
   const screenshotLinks = [];
-  const noteSlug = slug(page.title);
+  const noteSlug = slug(currentNoteTitle(page.title));
 
   for (let index = 0; index < screenshots.length; index += 1) {
     const screenshot = screenshots[index];
@@ -669,7 +727,8 @@ async function putVaultFile(settings, path, body, contentType, encoding) {
 }
 
 function buildPageMarkdown(page, screenshotLinks, destinationFolder, capturedAt) {
-  const note = elements.userNote.value.trim();
+  const title = currentNoteTitle(page.title);
+  const description = elements.userNote.value.trim();
   const sourceType = sourceTypeForUrl(page.url);
   const review = reviewSchedule(state.noteStatus, capturedAt);
 
@@ -679,6 +738,7 @@ obsync_kind: web_note
 type: capture
 source_type: ${sourceType}
 source_title: ${yamlString(page.title)}
+title: ${yamlString(title)}
 source: ${yamlString(page.url)}
 captured_at: ${capturedAt.toISOString()}
 status: ${state.noteStatus}
@@ -688,14 +748,14 @@ folder: ${yamlString(destinationFolder)}
 tags: [obsync, capture, ${sourceType}, ${state.noteStatus}]
 ---
 
-# ${page.title}
+# ${title}
 
 > [!source]
 > ${page.url}
 
-## Apunte
+## Descripción
 
-${note || "Apunte pendiente de completar."}
+${description || "Pendiente de describir."}
 
 ## Evidencia
 
@@ -720,6 +780,8 @@ ${page.url}
 }
 
 function buildMarkdown(note, capture, video, screenshotLinks, destinationFolder, capturedAt) {
+  const title = currentNoteTitle(note.title);
+  const description = elements.userNote.value.trim();
   const tags = note.tags.map((tag) => `#${tag.replace(/^#/, "")}`).join(" ");
   const backlinks = note.backlinks.map((link) => `[[${link}]]`).join(" ");
   const sourceTime = `${video.url}&t=${Math.floor(capture.range.start)}s`;
@@ -731,6 +793,7 @@ obsync_kind: video_extract
 type: capture
 source_type: youtube
 source_title: ${yamlString(video.title)}
+title: ${yamlString(title)}
 source: ${yamlString(video.url)}
 source_time: ${yamlString(sourceTime)}
 range: ${formatTime(capture.range.start)}-${formatTime(capture.range.end)}
@@ -743,7 +806,7 @@ suggested_folder: ${yamlString(note.folder)}
 tags: [obsync, capture, youtube, ${state.noteStatus}, ${note.tags.map((tag) => tag.replace(/^#/, "")).join(", ")}]
 ---
 
-# ${note.title}
+# ${title}
 
 > [!source]
 > ${sourceTime}
@@ -751,6 +814,10 @@ tags: [obsync, capture, youtube, ${state.noteStatus}, ${note.tags.map((tag) => t
 ## Apunte
 
 ${note.idea}
+
+## Descripción
+
+${description || "Sin descripción manual."}
 
 ## Evidencia
 
@@ -791,6 +858,9 @@ function openSettings() {
 
 function render(disabled = false) {
   elements.videoTitle.textContent = state.page?.title || state.video?.title || "Abre una página o video";
+  if (!state.titleTouched) {
+    elements.noteTitle.value = defaultNoteTitle();
+  }
   elements.range.textContent = state.start === null ? sourceKindLabel() : `${formatTime(state.start)} -> ${state.video ? formatTime(state.video.currentTime) : "..."}`;
   elements.screenshotCount.textContent = String(state.screenshots.length);
   elements.clipBtn.textContent = state.start === null ? "Iniciar extracto" : "Cerrar y guardar";
@@ -824,6 +894,15 @@ function sourceKindLabel() {
   if (state.video) return "Video listo";
   if (state.page) return "Apunte web";
   return "Sin fuente";
+}
+
+function defaultNoteTitle() {
+  const sourceTitle = state.video?.title || state.page?.title || "";
+  return sourceTitle.replace(/\s+-\s+YouTube$/i, "").trim();
+}
+
+function currentNoteTitle(fallback) {
+  return elements.noteTitle.value.trim() || String(fallback || "Apunte").trim() || "Apunte";
 }
 
 function setMessage(message, className = "") {
