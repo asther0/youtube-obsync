@@ -53,6 +53,8 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
 .brand {
   display: grid;
   gap: 2px;
@@ -265,12 +267,15 @@ button:disabled {
   display: flex;
   gap: 8px;
   min-height: 58px;
+  max-width: 100%;
   overflow-x: auto;
 }
 
 .strip img {
+  flex: 0 0 88px;
   width: 88px;
   height: 56px;
+  max-width: 88px;
   border: 1px solid var(--line);
   border-radius: 6px;
   object-fit: cover;
