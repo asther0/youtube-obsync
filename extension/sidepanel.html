@@ -13,7 +13,7 @@
           <strong>YouTube Obsync</strong>
           <span id="connection">Set token</span>
         </div>
-        <button id="settingsToggle" title="Settings">•••</button>
+        <button id="settingsToggle" title="Connection">Connect</button>
       </header>
 
       <section class="source">
@@ -22,16 +22,15 @@
       </section>
 
       <label class="field">
-        Save to
+        Folder
         <select id="folderSelect"></select>
       </label>
 
-      <textarea id="userNote" placeholder="Write what you are learning here..."></textarea>
+      <textarea id="userNote" placeholder="Write the idea you want to keep..."></textarea>
 
-      <section class="capture-row">
-        <button id="startBtn">Start</button>
-        <button id="screenshotBtn">Screenshot</button>
-        <button id="saveBtn" class="primary">Save</button>
+      <section class="capture-dock">
+        <button id="clipBtn" class="primary">Capture</button>
+        <button id="screenshotBtn" title="Screenshot">Shot</button>
       </section>
 
       <section class="frames">
@@ -43,14 +42,10 @@
       </section>
 
       <section id="settingsPanel" class="settings" hidden>
-        <label>
-          Backend
-          <input id="backendUrl" value="http://localhost:4177" />
-        </label>
-        <label>
-          Obsidian REST URL
-          <input id="obsidianUrl" value="http://127.0.0.1:27123" />
-        </label>
+        <div class="connection-tools">
+          <button id="testConnectionBtn">Test Obsidian</button>
+          <span id="connectionDetail">Not tested</span>
+        </div>
         <label>
           Obsidian token
           <input id="obsidianToken" type="password" placeholder="Local REST API token" />
@@ -60,6 +55,17 @@
           <input id="folders" value="Inbox, Learning, Ideas, Frameworks, Examples" />
         </label>
         <button id="saveSettingsBtn">Save settings</button>
+        <details class="advanced-settings">
+          <summary>Advanced</summary>
+          <label>
+            Backend
+            <input id="backendUrl" value="http://localhost:4177" />
+          </label>
+          <label>
+            Obsidian REST URL
+            <input id="obsidianUrl" value="https://127.0.0.1:27124" />
+          </label>
+        </details>
       </section>
 
       <p id="message"></p>

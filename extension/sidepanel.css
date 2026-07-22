@@ -68,10 +68,11 @@ body {
 }
 
 #settingsToggle {
-  width: 34px;
+  width: auto;
   min-height: 30px;
-  padding: 0;
+  padding: 0 10px;
   color: var(--muted);
+  font-size: 12px;
 }
 
 .source {
@@ -122,9 +123,9 @@ textarea {
   line-height: 1.55;
 }
 
-.capture-row {
+.capture-dock {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
 }
 
@@ -180,6 +181,32 @@ button:disabled {
   gap: 10px;
   border-top: 1px solid var(--line);
   padding-top: 12px;
+}
+
+.connection-tools {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.connection-tools span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.advanced-settings {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.advanced-settings label {
+  margin-top: 10px;
 }
 
 #message {

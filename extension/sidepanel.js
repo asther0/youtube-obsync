@@ -5,19 +5,28 @@ const state = {
   screenshots: []
 };
 
+const DEFAULT_SETTINGS = {
+  backendUrl: "http://localhost:4177",
+  obsidianUrl: "https://127.0.0.1:27124",
+  obsidianToken: "",
+  folders: "Inbox, Learning, Ideas, Frameworks, Examples",
+  selectedFolder: "Inbox"
+};
+
 const elements = {
   connection: document.querySelector("#connection"),
   videoTitle: document.querySelector("#videoTitle"),
   range: document.querySelector("#range"),
   folderSelect: document.querySelector("#folderSelect"),
   userNote: document.querySelector("#userNote"),
-  startBtn: document.querySelector("#startBtn"),
+  clipBtn: document.querySelector("#clipBtn"),
   screenshotBtn: document.querySelector("#screenshotBtn"),
-  saveBtn: document.querySelector("#saveBtn"),
   screenshotCount: document.querySelector("#screenshotCount"),
   screenshotStrip: document.querySelector("#screenshotStrip"),
   settingsToggle: document.querySelector("#settingsToggle"),
   settingsPanel: document.querySelector("#settingsPanel"),
+  testConnectionBtn: document.querySelector("#testConnectionBtn"),
+  connectionDetail: document.querySelector("#connectionDetail"),
   backendUrl: document.querySelector("#backendUrl"),
   obsidianUrl: document.querySelector("#obsidianUrl"),
   obsidianToken: document.querySelector("#obsidianToken"),
@@ -33,10 +42,13 @@ async function init() {
   await refreshVideo();
   render();
 
-  elements.startBtn.addEventListener("click", startClip);
+  elements.clipBtn.addEventListener("click", toggleClip);
   elements.screenshotBtn.addEventListener("click", takeScreenshot);
-  elements.saveBtn.addEventListener("click", saveClip);
   elements.saveSettingsBtn.addEventListener("click", saveSettings);
+  elements.testConnectionBtn.addEventListener("click", testConnection);
+  elements.folderSelect.addEventListener("change", () => {
+    chrome.storage.sync.set({ selectedFolder: elements.folderSelect.value });
+  });
   elements.settingsToggle.addEventListener("click", () => {
     elements.settingsPanel.hidden = !elements.settingsPanel.hidden;
   });
@@ -48,13 +60,7 @@ async function init() {
 }
 
 async function loadSettings() {
-  const settings = await chrome.storage.sync.get({
-    backendUrl: "http://localhost:4177",
-    obsidianUrl: "http://127.0.0.1:27123",
-    obsidianToken: "",
-    folders: "Inbox, Learning, Ideas, Frameworks, Examples",
-    selectedFolder: "Inbox"
-  });
+  const settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
 
   elements.backendUrl.value = settings.backendUrl;
   elements.obsidianUrl.value = settings.obsidianUrl;
@@ -74,6 +80,57 @@ async function saveSettings() {
   });
   setMessage("Settings saved.");
   await loadSettings();
+  await testConnection({ silent: true });
+}
+
+async function testConnection(options = {}) {
+  const settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
+  if (!settings.obsidianToken) {
+    elements.connection.textContent = "Set token";
+    elements.connectionDetail.textContent = "Missing token";
+    return false;
+  }
+
+  const candidates = unique([
+    settings.obsidianUrl || "https://127.0.0.1:27124",
+    "https://127.0.0.1:27124",
+    "https://127.0.0.1:27123",
+    "http://127.0.0.1:27123",
+    "http://127.0.0.1:27124",
+    "https://localhost:27124",
+    "https://localhost:27123",
+    "http://localhost:27123",
+    "http://localhost:27124"
+  ]);
+
+  for (const url of candidates) {
+    try {
+      const response = await fetch(`${settings.backendUrl.replace(/\/$/, "")}/api/obsync-vault`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "test",
+          obsidianUrl: url,
+          obsidianToken: settings.obsidianToken
+        })
+      });
+      const data = await response.json();
+      if (response.ok && data.ok) {
+        await chrome.storage.sync.set({ obsidianUrl: url });
+        elements.obsidianUrl.value = url;
+        elements.connection.textContent = "Obsidian ready";
+        elements.connectionDetail.textContent = `Connected on ${url}`;
+        if (!options.silent) setMessage("Obsidian connected.", "saved");
+        return true;
+      }
+    } catch {
+    }
+  }
+
+  elements.connection.textContent = "Disconnected";
+  elements.connectionDetail.textContent = "Check plugin, port, or token";
+  if (!options.silent) setMessage("Could not reach Obsidian. Keep Obsidian open and paste the token without Bearer.");
+  return false;
 }
 
 function renderFolders(folders, selectedFolder) {
@@ -118,8 +175,16 @@ async function startClip() {
 
   state.start = state.video.currentTime;
   state.screenshots = [];
-  setMessage(`Started at ${formatTime(state.start)}.`);
+  setMessage(`Capture started at ${formatTime(state.start)}.`);
   render();
+}
+
+async function toggleClip() {
+  if (state.start === null) {
+    await startClip();
+    return;
+  }
+  await saveClip();
 }
 
 async function takeScreenshot() {
@@ -134,29 +199,54 @@ async function takeScreenshot() {
     dataUrl,
     timestamp: state.video?.currentTime ?? 0
   });
-  setMessage("Screenshot captured.");
+  setMessage("Screenshot added.");
   render();
 }
 
 async function saveClip() {
   await refreshVideo();
   if (!state.video || state.start === null) {
-    setMessage("Start a clip first.");
+    setMessage("Capture a start point first.");
     return;
   }
 
-  const settings = await chrome.storage.sync.get(["backendUrl", "obsidianUrl", "obsidianToken", "folders"]);
+  const settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
   const selectedFolder = elements.folderSelect.value || "Inbox";
   if (!settings.obsidianToken) {
-    setMessage("Add your Obsidian Local REST API token in Settings.");
+    setMessage("Add your Obsidian token in Connect.");
+    elements.settingsPanel.hidden = false;
+    return;
+  }
+
+  const connected = await testConnection({ silent: true });
+  if (!connected) {
+    setMessage("Obsidian is not reachable. Open Connect and test it.");
     elements.settingsPanel.hidden = false;
     return;
   }
 
   const end = Math.max(state.start + 1, state.video.currentTime);
-  setMessage("Generating note...");
+  setMessage("Saving note...");
   render(true);
 
+  try {
+    const freshSettings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
+    const capture = await generateCapture(freshSettings, selectedFolder, end);
+
+    await chrome.storage.sync.set({ selectedFolder });
+    await writeCaptureToObsidian(capture, freshSettings, state.video, state.screenshots, selectedFolder);
+    state.start = null;
+    state.screenshots = [];
+    elements.userNote.value = "";
+    setMessage(capture.localFallback ? `Saved manual note to ${selectedFolder}.` : `Saved to ${selectedFolder}.`, "saved");
+  } catch (error) {
+    setMessage(error instanceof Error ? error.message : "Could not save clip.");
+  } finally {
+    render(false);
+  }
+}
+
+async function generateCapture(settings, selectedFolder, end) {
   try {
     const captureResponse = await fetch(`${settings.backendUrl.replace(/\/$/, "")}/api/obsync-capture`, {
       method: "POST",
@@ -176,18 +266,37 @@ async function saveClip() {
 
     const capture = await captureResponse.json();
     if (!captureResponse.ok) throw new Error(capture.error || "Capture failed.");
-
-    await chrome.storage.sync.set({ selectedFolder });
-    await writeCaptureToObsidian(capture, settings, state.video, state.screenshots, selectedFolder);
-    state.start = null;
-    state.screenshots = [];
-    elements.userNote.value = "";
-    setMessage("Saved to Obsidian.", "saved");
-  } catch (error) {
-    setMessage(error instanceof Error ? error.message : "Could not save clip.");
-  } finally {
-    render(false);
+    return capture;
+  } catch {
+    return buildManualCapture(selectedFolder, end);
   }
+}
+
+function buildManualCapture(selectedFolder, end) {
+  const title = elements.userNote.value.trim().split("\n")[0]?.slice(0, 80) || state.video.title;
+  const noteTitle = title || "YouTube moment";
+
+  return {
+    range: {
+      start: state.start,
+      end
+    },
+    rangeTitle: noteTitle,
+    summary: elements.userNote.value.trim() || "Manual capture from YouTube.",
+    transcriptMarkdown: "Transcript unavailable. Manual note and screenshot were captured locally.",
+    notes: [
+      {
+        title: noteTitle,
+        folder: selectedFolder,
+        idea: elements.userNote.value.trim() || "Captured YouTube moment.",
+        evidence: `Captured from ${state.video.title} at ${formatTime(state.start)}.`,
+        tags: ["youtube", "obsync"],
+        backlinks: [],
+        filename: `${slug(noteTitle)}.md`
+      }
+    ],
+    localFallback: true
+  };
 }
 
 async function writeCaptureToObsidian(capture, settings, video, screenshots, selectedFolder) {
@@ -198,7 +307,7 @@ async function writeCaptureToObsidian(capture, settings, video, screenshots, sel
     const screenshot = screenshots[index];
     const filename = `${slug(video.title)}-${Math.round(capture.range.start)}-${index + 1}.png`;
     const path = `${attachmentFolder}/${filename}`;
-    await putVaultFile(settings, path, dataUrlToBlob(screenshot.dataUrl), "image/png");
+    await putVaultFile(settings, path, dataUrlToBase64(screenshot.dataUrl), "image/png", "base64");
     screenshotLinks.push(`![[${path}]]`);
   }
 
@@ -206,22 +315,34 @@ async function writeCaptureToObsidian(capture, settings, video, screenshots, sel
     const destinationFolder = selectedFolder || note.folder || "Inbox";
     const markdown = buildMarkdown(note, capture, video, screenshotLinks, destinationFolder);
     const path = `${destinationFolder}/${safeFilename(note.filename || note.title)}`;
-    await putVaultFile(settings, path, markdown, "text/markdown");
+    await putVaultFile(settings, path, markdown, "text/markdown", "text");
   }
 }
 
-async function putVaultFile(settings, path, body, contentType) {
-  const response = await fetch(`${settings.obsidianUrl.replace(/\/$/, "")}/vault/${encodeVaultPath(path)}`, {
-    method: "PUT",
-    headers: {
-      Authorization: `Bearer ${settings.obsidianToken}`,
-      "Content-Type": contentType
-    },
-    body
-  });
+async function putVaultFile(settings, path, body, contentType, encoding) {
+  let response;
+  let data;
+  try {
+    response = await fetch(`${settings.backendUrl.replace(/\/$/, "")}/api/obsync-vault`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "put",
+        obsidianUrl: settings.obsidianUrl,
+        obsidianToken: settings.obsidianToken,
+        path,
+        contentType,
+        body,
+        encoding
+      })
+    });
+    data = await response.json();
+  } catch {
+    throw new Error("Backend is unreachable. Run bun run dev -- -p 4177.");
+  }
 
   if (!response.ok) {
-    throw new Error(`Obsidian write failed: ${response.status}`);
+    throw new Error(data?.error || "Obsidian write failed.");
   }
 }
 
@@ -276,9 +397,9 @@ function render(disabled = false) {
       ? "No active clip"
       : `${formatTime(state.start)} -> ${state.video ? formatTime(state.video.currentTime) : "..."}`;
   elements.screenshotCount.textContent = String(state.screenshots.length);
-  elements.startBtn.disabled = disabled || !state.video;
+  elements.clipBtn.textContent = state.start === null ? "Capture" : "Save";
+  elements.clipBtn.disabled = disabled || !state.video;
   elements.screenshotBtn.disabled = disabled || !state.video;
-  elements.saveBtn.disabled = disabled || !state.video || state.start === null;
   elements.screenshotStrip.innerHTML = "";
   for (const screenshot of state.screenshots) {
     const image = document.createElement("img");
@@ -300,22 +421,12 @@ function splitList(value) {
     .filter(Boolean);
 }
 
-function dataUrlToBlob(dataUrl) {
-  const [header, base64] = dataUrl.split(",");
-  const mime = header.match(/data:(.*);base64/)?.[1] || "image/png";
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return new Blob([bytes], { type: mime });
+function unique(items) {
+  return Array.from(new Set(items.filter(Boolean)));
 }
 
-function encodeVaultPath(path) {
-  return path
-    .split("/")
-    .map((part) => encodeURIComponent(part))
-    .join("/");
+function dataUrlToBase64(dataUrl) {
+  return dataUrl.split(",")[1] || "";
 }
 
 function safeFilename(value) {

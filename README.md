@@ -54,26 +54,22 @@ Para probarla:
 bun run dev -- -p 4177
 ```
 
-2. Instala en Obsidian el plugin Community **Local REST API** y copia su token.
+2. Instala en Obsidian el plugin Community **Local REST API with MCP** y copia su token.
 3. Abre Chrome en `chrome://extensions`.
 4. Activa **Developer mode**.
 5. Haz click en **Load unpacked** y selecciona la carpeta `extension/`.
 6. Abre un video de YouTube.
 7. Abre la extensión desde un video de YouTube. Se abrirá como side panel.
-8. Configura:
-   - Backend: `http://localhost:4177`
-   - Obsidian REST URL: `http://127.0.0.1:27123`
-   - Obsidian token
-   - Carpetas canónicas separadas por comas
-9. Elige la carpeta destino en **Save to**.
+8. Haz click en **Connect**, pega el token sin la palabra `Bearer` y prueba la conexión con **Test Obsidian**.
+9. Elige la carpeta destino en **Folder**.
 10. Usa:
-   - **Start** para marcar inicio.
-   - **Screenshot** para capturar la pantalla actual.
+   - **Capture** una vez para marcar el inicio del recorte.
+   - **Shot** para capturar frames importantes.
    - **Save** para cerrar el recorte, generar la nota y guardarla en Obsidian.
 
 La extensión usa `chrome.tabs.captureVisibleTab`, por lo que captura lo visible de la pestaña como evidencia visual. Las imágenes se guardan en `Attachments/youtube-obsync/` y se embeben en el Markdown.
 
-El backend local sigue siendo necesario para dos partes: traer transcript con SearchAPI y generar notas atómicas con OpenAI. La escritura final a Obsidian ocurre desde la extensión vía Local REST API.
+El backend local sigue siendo necesario para traer transcript con SearchAPI, generar notas atómicas con OpenAI y escribir en Obsidian sin depender del certificado local de Chrome. El plugin suele responder en `https://127.0.0.1:27124`; el sidebar lo detecta automáticamente desde **Test Obsidian**.
 
 ## Uso De Referencias
 
