@@ -25,7 +25,14 @@
       </section>
 
       <input id="noteTitle" class="note-title" placeholder="Título del apunte" />
-      <textarea id="userNote" placeholder="Descripción, idea o pregunta que quieres guardar..."></textarea>
+      <div
+        id="userNote"
+        class="note-editor"
+        contenteditable="true"
+        role="textbox"
+        aria-multiline="true"
+        data-placeholder="Descripción, idea o pregunta que quieres guardar..."
+      ></div>
 
       <section class="status-row" aria-label="Estado del apunte">
         <button class="status-pill active" data-status="pendiente">Pendiente</button>

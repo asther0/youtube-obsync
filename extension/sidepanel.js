@@ -11,7 +11,8 @@ const state = {
   noteStatus: "pendiente",
   connectionStatus: "missing",
   titleTouched: false,
-  lastSourceUrl: ""
+  lastSourceUrl: "",
+  lastEditorRange: null
 };
 
 const OLD_DEFAULT_FOLDERS = "Inbox, Learning, Ideas, Frameworks, Examples";
@@ -83,6 +84,9 @@ async function init() {
   elements.noteTitle.addEventListener("input", () => {
     state.titleTouched = true;
   });
+  for (const eventName of ["keyup", "mouseup", "input", "focus"]) {
+    elements.userNote.addEventListener(eventName, saveEditorSelection);
+  }
   for (const pill of elements.statusPills) {
     pill.addEventListener("click", () => {
       state.noteStatus = pill.dataset.status || "pendiente";
@@ -637,7 +641,7 @@ async function generateCapture(settings, selectedFolder, end) {
         videoUrl: state.video.url,
         start: state.start,
         end,
-        userNote: elements.userNote.value,
+        userNote: editorMarkdown([]),
         vaultMap: {
           folders: [selectedFolder, ...splitList(settings.folders).filter((folder) => folder !== selectedFolder)],
           notes: [],
@@ -726,7 +730,7 @@ async function putVaultFile(settings, path, body, contentType, encoding) {
 
 function buildPageMarkdown(page, screenshotLinks, destinationFolder, capturedAt) {
   const title = currentNoteTitle(page.title);
-  const description = renderDescription(elements.userNote.value, screenshotLinks);
+  const description = renderDescription(screenshotLinks);
   const sourceType = sourceTypeForUrl(page.url);
   const review = reviewSchedule(state.noteStatus, capturedAt);
 
@@ -775,7 +779,7 @@ ${page.url}
 
 function buildMarkdown(note, capture, video, screenshotLinks, destinationFolder, capturedAt) {
   const title = currentNoteTitle(note.title);
-  const description = renderDescription(elements.userNote.value, screenshotLinks);
+  const description = renderDescription(screenshotLinks);
   const tags = note.tags.map((tag) => `#${tag.replace(/^#/, "")}`).join(" ");
   const backlinks = note.backlinks.map((link) => `[[${link}]]`).join(" ");
   const sourceTime = `${video.url}&t=${Math.floor(capture.range.start)}s`;
@@ -896,8 +900,9 @@ function resetComposerAfterSave() {
   state.lastCapture = null;
   state.noteStatus = "pendiente";
   state.titleTouched = true;
+  state.lastEditorRange = null;
   elements.noteTitle.value = "";
-  elements.userNote.value = "";
+  elements.userNote.innerHTML = "";
   closeCropper();
 }
 
@@ -917,35 +922,61 @@ function currentNoteTitle(fallback) {
   return elements.noteTitle.value.trim() || String(fallback || "Apunte").trim() || "Apunte";
 }
 
-function insertAtCursor(textarea, text) {
-  const start = textarea.selectionStart ?? textarea.value.length;
-  const end = textarea.selectionEnd ?? textarea.value.length;
-  const before = textarea.value.slice(0, start);
-  const after = textarea.value.slice(end);
-  const prefix = before && !before.endsWith("\n") ? "\n\n" : "";
-  const suffix = after && !after.startsWith("\n") ? "\n\n" : "";
-  const insertion = `${prefix}${text}${suffix}`;
-  textarea.value = `${before}${insertion}${after}`;
-  const cursor = before.length + insertion.length;
-  textarea.focus();
-  textarea.setSelectionRange(cursor, cursor);
+function insertAtCursor(editor, marker) {
+  editor.focus();
+  const screenshot = state.screenshots.find((item) => item.marker === marker);
+  if (!screenshot) return;
+
+  const figure = document.createElement("figure");
+  figure.className = "note-image";
+  figure.contentEditable = "false";
+  figure.dataset.marker = marker;
+
+  const image = document.createElement("img");
+  image.src = screenshot.dataUrl;
+  image.alt = marker.replace(/[!\\[\\]]/g, "");
+
+  const caption = document.createElement("figcaption");
+  caption.textContent = marker.replace(/[!\\[\\]]/g, "");
+  figure.append(image, caption);
+
+  const spacer = document.createElement("div");
+  spacer.append(document.createElement("br"));
+
+  const selection = window.getSelection();
+  const liveRange = selection?.rangeCount ? selection.getRangeAt(0) : null;
+  const savedRange = state.lastEditorRange?.cloneRange();
+  const range =
+    liveRange && editor.contains(liveRange.commonAncestorContainer)
+      ? liveRange
+      : savedRange && editor.contains(savedRange.commonAncestorContainer)
+        ? savedRange
+        : null;
+
+  if (range) {
+    range.deleteContents();
+    range.insertNode(spacer);
+    range.insertNode(figure);
+    range.setStartAfter(spacer);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    saveEditorSelection();
+  } else {
+    editor.append(figure, spacer);
+  }
 }
 
-function renderDescription(value, screenshotLinks) {
-  let markdown = String(value || "").trim();
-  const unused = [];
+function saveEditorSelection() {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount) return;
+  const range = selection.getRangeAt(0);
+  if (!elements.userNote.contains(range.commonAncestorContainer)) return;
+  state.lastEditorRange = range.cloneRange();
+}
 
-  for (const screenshot of screenshotLinks) {
-    if (screenshot.marker && markdown.includes(screenshot.marker)) {
-      markdown = markdown.split(screenshot.marker).join(screenshot.link);
-    } else {
-      unused.push(screenshot.link);
-    }
-  }
-
-  if (!markdown) return unused.join("\n\n");
-  if (!unused.length) return markdown;
-  return `${markdown}\n\n${unused.join("\n\n")}`;
+function renderDescription(screenshotLinks) {
+  return editorMarkdown(screenshotLinks);
 }
 
 function unplacedScreenshotLinks(description, screenshotLinks) {
@@ -953,6 +984,49 @@ function unplacedScreenshotLinks(description, screenshotLinks) {
     .map((screenshot) => screenshot.link)
     .filter((link) => !description.includes(link))
     .join("\n");
+}
+
+function editorMarkdown(screenshotLinks) {
+  const linksByMarker = new Map(screenshotLinks.map((screenshot) => [screenshot.marker, screenshot.link]));
+  const parts = [];
+
+  for (const node of elements.userNote.childNodes) {
+    appendNodeMarkdown(node, parts, linksByMarker);
+  }
+
+  return parts
+    .join("")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function appendNodeMarkdown(node, parts, linksByMarker) {
+  if (node.nodeType === Node.TEXT_NODE) {
+    parts.push(node.textContent || "");
+    return;
+  }
+
+  if (node.nodeType !== Node.ELEMENT_NODE) return;
+  const element = node;
+
+  if (element.matches?.(".note-image")) {
+    const marker = element.dataset.marker;
+    parts.push(`\n\n${linksByMarker.get(marker) || marker || ""}\n\n`);
+    return;
+  }
+
+  if (element.tagName === "BR") {
+    parts.push("\n");
+    return;
+  }
+
+  for (const child of element.childNodes) {
+    appendNodeMarkdown(child, parts, linksByMarker);
+  }
+
+  if (["DIV", "P"].includes(element.tagName)) {
+    parts.push("\n");
+  }
 }
 
 function prettyTitle(title, url) {

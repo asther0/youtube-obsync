@@ -138,7 +138,7 @@ body {
 }
 
 select,
-textarea,
+.note-editor,
 input {
   width: 100%;
   border: 1px solid var(--line);
@@ -160,12 +160,49 @@ input {
   font-weight: 850;
 }
 
-textarea {
+.note-editor {
   min-height: 136px;
-  resize: vertical;
+  max-height: 280px;
+  overflow: auto;
   padding: 12px;
   font-size: 14px;
   line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.note-editor:empty::before {
+  color: var(--muted);
+  content: attr(data-placeholder);
+  pointer-events: none;
+}
+
+.note-editor:focus {
+  border-color: rgba(124, 92, 255, 0.52);
+}
+
+.note-image {
+  display: block;
+  width: min(100%, 280px);
+  margin: 8px 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #050608;
+}
+
+.note-image img {
+  display: block;
+  width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+}
+
+.note-image figcaption {
+  border-top: 1px solid var(--line);
+  padding: 5px 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
 }
 
 .capture-dock {
@@ -429,7 +466,7 @@ button:disabled {
     gap: 8px;
   }
 
-  textarea {
+  .note-editor {
     min-height: 120px;
   }
 
