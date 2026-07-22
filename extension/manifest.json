@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "YouTube Obsync",
+  "description": "Capture YouTube moments as connected Obsidian notes.",
+  "version": "0.1.0",
+  "action": {
+    "default_title": "YouTube Obsync",
+    "default_popup": "popup.html"
+  },
+  "permissions": ["activeTab", "scripting", "tabs", "storage"],
+  "host_permissions": [
+    "https://www.youtube.com/*",
+    "http://localhost:4177/*",
+    "http://127.0.0.1:27123/*",
+    "http://127.0.0.1:27124/*"
+  ]
+}
