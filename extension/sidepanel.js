@@ -228,9 +228,13 @@ async function takeScreenshot() {
     return;
   }
 
-  await appendScreenshot();
-  setMessage("Imagen añadida.");
-  render();
+  try {
+    await appendScreenshot();
+    setMessage("Imagen añadida.");
+    render();
+  } catch (error) {
+    setMessage(error instanceof Error ? error.message : "No pude capturar la imagen.");
+  }
 }
 
 async function appendFinalScreenshot(end) {
@@ -247,9 +251,16 @@ async function appendFinalScreenshot(end) {
 async function appendScreenshot(timestampOverride) {
   if (!state.tab?.windowId) throw new Error("No hay pestaña activa para capturar.");
 
-  const dataUrl = await chrome.tabs.captureVisibleTab(state.tab.windowId, { format: "png" });
+  const response = await chrome.runtime.sendMessage({
+    type: "CAPTURE_VISIBLE_TAB",
+    windowId: state.tab.windowId
+  });
+  if (!response?.ok) {
+    throw new Error(response?.error || "No pude capturar la pestaña visible.");
+  }
+
   state.screenshots.push({
-    dataUrl,
+    dataUrl: response.dataUrl,
     timestamp: timestampOverride ?? state.video?.currentTime ?? 0
   });
 }

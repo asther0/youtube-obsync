@@ -73,7 +73,7 @@ La extensión usa `chrome.tabs.captureVisibleTab`, por lo que captura lo visible
 
 El backend local sigue siendo necesario para traer transcript con SearchAPI, generar notas atómicas con OpenAI y escribir en Obsidian sin depender del certificado local de Chrome. El plugin suele responder en `https://127.0.0.1:27124`; el sidebar lo detecta automáticamente desde **Probar Obsidian**.
 
-La extensión usa `<all_urls>` en `host_permissions` para permitir `chrome.tabs.captureVisibleTab` desde el side panel durante la demo. El backend proxy solo acepta endpoints locales de Obsidian (`localhost`/`127.0.0.1` en puertos `27123` o `27124`).
+La extensión usa `<all_urls>` en `host_permissions` para permitir `chrome.tabs.captureVisibleTab` desde el service worker durante la demo. El backend proxy solo acepta endpoints locales de Obsidian (`localhost`/`127.0.0.1` en puertos `27123` o `27124`).
 
 ## Uso De Referencias
 
