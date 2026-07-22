@@ -8,12 +8,14 @@ const state = {
   noteStatus: "pendiente"
 };
 
+const OLD_DEFAULT_FOLDERS = "Inbox, Learning, Ideas, Frameworks, Examples";
+
 const DEFAULT_SETTINGS = {
   backendUrl: "http://localhost:4177",
   obsidianUrl: "https://127.0.0.1:27124",
   obsidianToken: "",
-  folders: "Inbox, Learning, Ideas, Frameworks, Examples",
-  selectedFolder: "Inbox"
+  folders: "20 inbox, 10 second-brain/ideas, 10 second-brain/patterns, 30 projects, 90 archive",
+  selectedFolder: "20 inbox"
 };
 
 const elements = {
@@ -187,9 +189,23 @@ async function getSettings() {
     await chrome.storage.sync.remove("obsidianToken");
   }
 
+  const migratedFolders =
+    preferences.folders === OLD_DEFAULT_FOLDERS ? DEFAULT_SETTINGS.folders : preferences.folders;
+  const migratedSelectedFolder =
+    preferences.selectedFolder === "Inbox" ? DEFAULT_SETTINGS.selectedFolder : preferences.selectedFolder;
+
+  if (migratedFolders !== preferences.folders || migratedSelectedFolder !== preferences.selectedFolder) {
+    await chrome.storage.sync.set({
+      folders: migratedFolders,
+      selectedFolder: migratedSelectedFolder
+    });
+  }
+
   return {
     ...DEFAULT_SETTINGS,
     ...preferences,
+    folders: migratedFolders,
+    selectedFolder: migratedSelectedFolder,
     obsidianToken: migratedToken
   };
 }
@@ -407,6 +423,7 @@ async function generateCapture(settings, selectedFolder, end) {
 async function writeCaptureToObsidian(capture, settings, video, screenshots, selectedFolder) {
   const attachmentFolder = "Attachments/youtube-obsync";
   const screenshotLinks = [];
+  const capturedAt = new Date();
 
   for (let index = 0; index < screenshots.length; index += 1) {
     const screenshot = screenshots[index];
@@ -417,30 +434,30 @@ async function writeCaptureToObsidian(capture, settings, video, screenshots, sel
   }
 
   for (const note of capture.notes) {
-    const destinationFolder = safeFolder(selectedFolder || note.folder || "Inbox");
-    const markdown = buildMarkdown(note, capture, video, screenshotLinks, destinationFolder);
-    const path = `${destinationFolder}/${safeFilename(note.filename || note.title)}`;
+    const destinationFolder = captureFolder(selectedFolder || note.folder || DEFAULT_SETTINGS.selectedFolder, capturedAt);
+    const markdown = buildMarkdown(note, capture, video, screenshotLinks, destinationFolder, capturedAt);
+    const path = `${destinationFolder}/${datedFilename(note.filename || note.title, capturedAt)}`;
     await putVaultFile(settings, path, markdown, "text/markdown", "text");
   }
 }
 
 async function writePageNoteToObsidian(settings, page, screenshots, selectedFolder) {
-  const destinationFolder = safeFolder(selectedFolder || "Inbox");
+  const capturedAt = new Date();
+  const destinationFolder = captureFolder(selectedFolder || DEFAULT_SETTINGS.selectedFolder, capturedAt);
   const attachmentFolder = "Attachments/obsync";
   const screenshotLinks = [];
   const noteSlug = slug(page.title);
 
   for (let index = 0; index < screenshots.length; index += 1) {
     const screenshot = screenshots[index];
-    const filename = `${noteSlug}-${Date.now()}-${index + 1}.png`;
+    const filename = `${noteSlug}-${capturedAt.getTime()}-${index + 1}.png`;
     const path = `${attachmentFolder}/${filename}`;
     await putVaultFile(settings, path, dataUrlToBase64(screenshot.dataUrl), "image/png", "base64");
     screenshotLinks.push(`![[${path}]]`);
   }
 
-  const filename = `${noteSlug || "web-note"}-${new Date().toISOString().slice(0, 10)}.md`;
-  const path = `${destinationFolder}/${safeFilename(filename)}`;
-  const markdown = buildPageMarkdown(page, screenshotLinks, destinationFolder);
+  const path = `${destinationFolder}/${datedFilename(noteSlug || "web-note", capturedAt)}`;
+  const markdown = buildPageMarkdown(page, screenshotLinks, destinationFolder, capturedAt);
   await putVaultFile(settings, path, markdown, "text/markdown", "text");
 }
 
@@ -471,19 +488,32 @@ async function putVaultFile(settings, path, body, contentType, encoding) {
   }
 }
 
-function buildPageMarkdown(page, screenshotLinks, destinationFolder) {
+function buildPageMarkdown(page, screenshotLinks, destinationFolder, capturedAt) {
   const note = elements.userNote.value.trim();
-  const capturedAt = new Date().toISOString();
+  const sourceType = sourceTypeForUrl(page.url);
+  const review = reviewSchedule(state.noteStatus, capturedAt);
 
   return `---
-source: ${page.url}
-captured_at: ${capturedAt}
+obsync_id: ${obsyncId(capturedAt)}
+obsync_kind: web_note
+type: capture
+source_type: ${sourceType}
+source_title: ${yamlString(page.title)}
+source: ${yamlString(page.url)}
+captured_at: ${capturedAt.toISOString()}
 status: ${state.noteStatus}
-folder: ${destinationFolder}
-tags: [web, obsync, ${state.noteStatus}]
+review_after: ${review.reviewAfter}
+review_interval_days: ${review.intervalDays}
+folder: ${yamlString(destinationFolder)}
+tags: [obsync, capture, ${sourceType}, ${state.noteStatus}]
 ---
 
 # ${page.title}
+
+> [!source]
+> ${page.url}
+
+## Apunte
 
 ${note || "Apunte pendiente de completar."}
 
@@ -495,40 +525,62 @@ ${screenshotLinks.length ? screenshotLinks.join("\n") : "Sin capturas."}
 
 ${page.url}
 
-## Próximos pasos
+## Revisión
 
-- Revisar y conectar con notas relacionadas.
-- Convertir este apunte en una nota atómica si sigue siendo útil.
+- Estado: \`${state.noteStatus}\`
+- Próxima revisión: \`${review.reviewAfter}\`
+- [ ] Decidir si se queda como apunte, se convierte en idea, patrón o se archiva.
+
+## Conexiones sugeridas
+
+- [[20 inbox/Pendings]]
+- [[10 second-brain/ideas]]
+- [[10 second-brain/patterns]]
 `;
 }
 
-function buildMarkdown(note, capture, video, screenshotLinks, destinationFolder) {
+function buildMarkdown(note, capture, video, screenshotLinks, destinationFolder, capturedAt) {
   const tags = note.tags.map((tag) => `#${tag.replace(/^#/, "")}`).join(" ");
   const backlinks = note.backlinks.map((link) => `[[${link}]]`).join(" ");
   const sourceTime = `${video.url}&t=${Math.floor(capture.range.start)}s`;
+  const review = reviewSchedule(state.noteStatus, capturedAt);
 
   return `---
-source: ${video.url}
-source_time: ${sourceTime}
+obsync_id: ${obsyncId(capturedAt)}
+obsync_kind: video_extract
+type: capture
+source_type: youtube
+source_title: ${yamlString(video.title)}
+source: ${yamlString(video.url)}
+source_time: ${yamlString(sourceTime)}
 range: ${formatTime(capture.range.start)}-${formatTime(capture.range.end)}
-folder: ${destinationFolder}
-suggested_folder: ${note.folder}
-tags: [${note.tags.map((tag) => tag.replace(/^#/, "")).join(", ")}]
+captured_at: ${capturedAt.toISOString()}
+status: ${state.noteStatus}
+review_after: ${review.reviewAfter}
+review_interval_days: ${review.intervalDays}
+folder: ${yamlString(destinationFolder)}
+suggested_folder: ${yamlString(note.folder)}
+tags: [obsync, capture, youtube, ${state.noteStatus}, ${note.tags.map((tag) => tag.replace(/^#/, "")).join(", ")}]
 ---
 
 # ${note.title}
 
+> [!source]
+> ${sourceTime}
+
+## Apunte
+
 ${note.idea}
 
-## Evidence
+## Evidencia
 
 ${note.evidence}
 
-## Screenshots
+## Capturas
 
-${screenshotLinks.length ? screenshotLinks.join("\n") : "No screenshots captured."}
+${screenshotLinks.length ? screenshotLinks.join("\n") : "Sin capturas."}
 
-## Links
+## Conexiones
 
 ${backlinks}
 
@@ -536,13 +588,19 @@ ${backlinks}
 
 ${tags}
 
-## Context
+## Contexto
 
 ${capture.summary}
 
-## Transcript
+## Transcripción
 
-${capture.transcriptMarkdown || "No transcript lines found for this range."}
+${capture.transcriptMarkdown || "Sin líneas de transcripción para este rango."}
+
+## Revisión
+
+- Estado: \`${state.noteStatus}\`
+- Próxima revisión: \`${review.reviewAfter}\`
+- [ ] Decidir si se queda como apunte, se convierte en idea, patrón o se archiva.
 `;
 }
 
@@ -608,6 +666,16 @@ function dataUrlToBase64(dataUrl) {
   return dataUrl.split(",")[1] || "";
 }
 
+function captureFolder(baseFolder, date) {
+  return `${safeFolder(baseFolder || DEFAULT_SETTINGS.selectedFolder)}/obsync/${monthKey(date)}`;
+}
+
+function datedFilename(value, date) {
+  const datePrefix = isoDate(date);
+  const base = String(value || "obsync-note").replace(/\.md$/i, "");
+  return safeFilename(`${datePrefix}-${base}`);
+}
+
 function safeFilename(value) {
   const withoutExtension = String(value || "obsync-note").replace(/\.md$/i, "");
   return `${safePathSegment(withoutExtension) || "obsync-note"}.md`;
@@ -642,6 +710,44 @@ function slug(value) {
     .replace(/\s+/g, "-")
     .toLowerCase()
     .slice(0, 60);
+}
+
+function sourceTypeForUrl(url) {
+  try {
+    const hostname = new URL(url).hostname.replace(/^www\./, "");
+    if (hostname.includes("youtube.com") || hostname.includes("youtu.be")) return "youtube";
+    if (hostname.includes("linkedin.com")) return "linkedin";
+    if (hostname.includes("github.com")) return "github";
+    return "web";
+  } catch {
+    return "web";
+  }
+}
+
+function reviewSchedule(status, date) {
+  const intervalDays = status === "revisado" ? 14 : 2;
+  const reviewDate = new Date(date.getTime());
+  reviewDate.setDate(reviewDate.getDate() + intervalDays);
+  return {
+    intervalDays,
+    reviewAfter: isoDate(reviewDate)
+  };
+}
+
+function obsyncId(date) {
+  return `obsync-${date.getTime()}`;
+}
+
+function monthKey(date) {
+  return date.toISOString().slice(0, 7);
+}
+
+function isoDate(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function yamlString(value) {
+  return JSON.stringify(String(value || ""));
 }
 
 function formatTime(seconds) {

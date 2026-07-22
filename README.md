@@ -78,6 +78,28 @@ El backend local sigue siendo necesario para traer transcript con SearchAPI, gen
 
 La configuración vive en **Conectar**: token de Obsidian, carpeta destino, carpetas canónicas y endpoints avanzados. La vista principal queda enfocada en capturar imagen, escribir una nota breve y guardar un extracto verificable del video.
 
+## Organización En Obsidian
+
+Obsync guarda los apuntes en una ruta mensual bajo la carpeta elegida:
+
+```text
+20 inbox/obsync/YYYY-MM/YYYY-MM-DD-titulo.md
+```
+
+Cada nota incluye frontmatter para poder armar recordatorios, Dataview queries
+o un dashboard personal:
+
+- `obsync_kind`: `web_note` o `video_extract`
+- `source_type`: `web`, `linkedin`, `github` o `youtube`
+- `status`: `pendiente` o `revisado`
+- `review_after`: fecha sugerida para volver a revisar
+- `review_interval_days`: intervalo usado para esa revisión
+- `source`, `source_title`, `captured_at`, `folder`
+
+La regla de trabajo recomendada es simple: todo entra por `20 inbox/obsync/`.
+Después, al revisar, se promueve manualmente a `10 second-brain/ideas`,
+`10 second-brain/patterns`, un proyecto en `30 projects/`, o se archiva.
+
 La extensión usa `<all_urls>` en `host_permissions` para permitir `chrome.tabs.captureVisibleTab` desde el service worker durante la demo. El backend proxy solo acepta endpoints locales de Obsidian (`localhost`/`127.0.0.1` en puertos `27123` o `27124`).
 
 ## Uso De Referencias
