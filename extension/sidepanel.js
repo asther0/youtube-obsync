@@ -2,7 +2,8 @@ const state = {
   tab: null,
   video: null,
   start: null,
-  screenshots: []
+  screenshots: [],
+  lastCapture: null
 };
 
 const DEFAULT_SETTINGS = {
@@ -23,6 +24,10 @@ const elements = {
   screenshotBtn: document.querySelector("#screenshotBtn"),
   screenshotCount: document.querySelector("#screenshotCount"),
   screenshotStrip: document.querySelector("#screenshotStrip"),
+  transcriptPreview: document.querySelector("#transcriptPreview"),
+  transcriptRange: document.querySelector("#transcriptRange"),
+  captureSummary: document.querySelector("#captureSummary"),
+  transcriptText: document.querySelector("#transcriptText"),
   settingsToggle: document.querySelector("#settingsToggle"),
   settingsPanel: document.querySelector("#settingsPanel"),
   testConnectionBtn: document.querySelector("#testConnectionBtn"),
@@ -210,8 +215,7 @@ async function startClip() {
   if (!state.video) return;
 
   state.start = state.video.currentTime;
-  state.screenshots = [];
-  setMessage(`Recorte iniciado en ${formatTime(state.start)}.`);
+  setMessage(`Extracto iniciado en ${formatTime(state.start)}.`);
   render();
 }
 
@@ -291,7 +295,7 @@ async function saveClip() {
 
   const end = Math.max(state.start + 1, state.video.currentTime);
   await appendFinalScreenshot(end);
-  setMessage("Guardando nota...");
+  setMessage("Leyendo transcripción y guardando...");
   render(true);
 
   try {
@@ -300,10 +304,14 @@ async function saveClip() {
 
     await chrome.storage.sync.set({ selectedFolder });
     await writeCaptureToObsidian(capture, freshSettings, state.video, state.screenshots, selectedFolder);
+    state.lastCapture = {
+      range: capture.range,
+      summary: capture.summary,
+      transcriptMarkdown: capture.transcriptMarkdown
+    };
     state.start = null;
-    state.screenshots = [];
     elements.userNote.value = "";
-    setMessage(capture.localFallback ? `Nota manual guardada en ${selectedFolder}.` : `Guardado en ${selectedFolder}.`, "saved");
+    setMessage(`Extracto guardado en ${selectedFolder}.`, "saved");
   } catch (error) {
     setMessage(error instanceof Error ? error.message : "No pude guardar el recorte.");
   } finally {
@@ -312,8 +320,9 @@ async function saveClip() {
 }
 
 async function generateCapture(settings, selectedFolder, end) {
+  let captureResponse;
   try {
-    const captureResponse = await fetch(`${settings.backendUrl.replace(/\/$/, "")}/api/obsync-capture`, {
+    captureResponse = await fetch(`${settings.backendUrl.replace(/\/$/, "")}/api/obsync-capture`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -328,40 +337,15 @@ async function generateCapture(settings, selectedFolder, end) {
         }
       })
     });
-
-    const capture = await captureResponse.json();
-    if (!captureResponse.ok) throw new Error(capture.error || "Capture failed.");
-    return capture;
   } catch {
-    return buildManualCapture(selectedFolder, end);
+    throw new Error("No pude leer la transcripción. Revisa que el backend esté corriendo en 4177.");
   }
-}
 
-function buildManualCapture(selectedFolder, end) {
-  const title = elements.userNote.value.trim().split("\n")[0]?.slice(0, 80) || state.video.title;
-  const noteTitle = title || "YouTube moment";
-
-  return {
-    range: {
-      start: state.start,
-      end
-    },
-    rangeTitle: noteTitle,
-    summary: elements.userNote.value.trim() || "Recorte manual de YouTube.",
-    transcriptMarkdown: "Transcripción no disponible. La nota manual y las capturas se guardaron localmente.",
-    notes: [
-      {
-        title: noteTitle,
-        folder: selectedFolder,
-        idea: elements.userNote.value.trim() || "Momento capturado desde YouTube.",
-        evidence: `Capturado desde ${state.video.title} en ${formatTime(state.start)}.`,
-        tags: ["youtube", "obsync"],
-        backlinks: [],
-        filename: `${slug(noteTitle)}.md`
-      }
-    ],
-    localFallback: true
-  };
+  const capture = await captureResponse.json();
+  if (!captureResponse.ok) {
+    throw new Error(capture.error || "No pude generar el extracto.");
+  }
+  return capture;
 }
 
 async function writeCaptureToObsidian(capture, settings, video, screenshots, selectedFolder) {
@@ -462,7 +446,7 @@ function render(disabled = false) {
       ? "Sin recorte"
       : `${formatTime(state.start)} -> ${state.video ? formatTime(state.video.currentTime) : "..."}`;
   elements.screenshotCount.textContent = String(state.screenshots.length);
-  elements.clipBtn.textContent = state.start === null ? "Capturar" : "Guardar";
+  elements.clipBtn.textContent = state.start === null ? "Iniciar extracto" : "Cerrar y guardar";
   elements.clipBtn.disabled = disabled || !state.video;
   elements.screenshotBtn.disabled = disabled || !state.video;
   elements.screenshotStrip.innerHTML = "";
@@ -471,6 +455,17 @@ function render(disabled = false) {
     image.src = screenshot.dataUrl;
     image.alt = `Captura en ${formatTime(screenshot.timestamp)}`;
     elements.screenshotStrip.append(image);
+  }
+
+  if (state.lastCapture) {
+    elements.transcriptPreview.hidden = false;
+    elements.transcriptRange.textContent = `${formatTime(state.lastCapture.range.start)} -> ${formatTime(
+      state.lastCapture.range.end
+    )}`;
+    elements.captureSummary.textContent = state.lastCapture.summary;
+    elements.transcriptText.textContent = state.lastCapture.transcriptMarkdown || "Sin líneas de transcripción para este rango.";
+  } else {
+    elements.transcriptPreview.hidden = true;
   }
 }
 

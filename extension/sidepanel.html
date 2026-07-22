@@ -21,16 +21,11 @@
         <strong id="range">Sin recorte</strong>
       </section>
 
-      <label class="field">
-        Carpeta
-        <select id="folderSelect"></select>
-      </label>
-
       <textarea id="userNote" placeholder="Escribe la idea que quieres guardar de este momento..."></textarea>
 
       <section class="capture-dock">
-        <button id="clipBtn" class="primary">Capturar</button>
         <button id="screenshotBtn" title="Captura de pantalla">Imagen</button>
+        <button id="clipBtn" class="primary">Iniciar extracto</button>
       </section>
 
       <section class="frames">
@@ -41,7 +36,20 @@
         <div id="screenshotStrip" class="strip"></div>
       </section>
 
+      <section id="transcriptPreview" class="preview" hidden>
+        <div>
+          <span>Último extracto</span>
+          <strong id="transcriptRange"></strong>
+        </div>
+        <p id="captureSummary"></p>
+        <pre id="transcriptText"></pre>
+      </section>
+
       <section id="settingsPanel" class="settings" hidden>
+        <label>
+          Carpeta destino
+          <select id="folderSelect"></select>
+        </label>
         <div class="connection-tools">
           <button id="testConnectionBtn">Probar Obsidian</button>
           <span id="connectionDetail">Sin probar</span>

@@ -65,13 +65,15 @@ bun run dev -- -p 4177
 8. Haz click en **Conectar**, pega el token sin la palabra `Bearer` y prueba la conexión con **Probar Obsidian**.
 9. Elige la carpeta destino en **Carpeta**.
 10. Usa:
-   - **Capturar** una vez para marcar el inicio del recorte.
-   - **Imagen** para capturar frames importantes.
-   - **Guardar** para cerrar el recorte, capturar el frame final, generar la nota y guardarla en Obsidian.
+   - **Imagen** para capturar frames importantes mientras ves el video.
+   - **Iniciar extracto** para marcar desde dónde quieres guardar transcripción.
+   - **Cerrar y guardar** para cerrar el rango, traer la transcripción, interpretarla con OpenAI y guardar la nota en Obsidian.
 
 La extensión usa `chrome.tabs.captureVisibleTab`, por lo que captura lo visible de la pestaña como evidencia visual. Las imágenes se guardan en `Attachments/youtube-obsync/` y se embeben en el Markdown.
 
 El backend local sigue siendo necesario para traer transcript con SearchAPI, generar notas atómicas con OpenAI y escribir en Obsidian sin depender del certificado local de Chrome. El plugin suele responder en `https://127.0.0.1:27124`; el sidebar lo detecta automáticamente desde **Probar Obsidian**.
+
+La configuración vive en **Conectar**: token de Obsidian, carpeta destino, carpetas canónicas y endpoints avanzados. La vista principal queda enfocada en capturar imagen, escribir una nota breve y guardar un extracto verificable del video.
 
 La extensión usa `<all_urls>` en `host_permissions` para permitir `chrome.tabs.captureVisibleTab` desde el service worker durante la demo. El backend proxy solo acepta endpoints locales de Obsidian (`localhost`/`127.0.0.1` en puertos `27123` o `27124`).
 

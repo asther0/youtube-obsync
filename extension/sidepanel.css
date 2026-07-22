@@ -41,7 +41,8 @@ body {
 
 .topbar,
 .source,
-.frames > div:first-child {
+.frames > div:first-child,
+.preview > div:first-child {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -116,7 +117,7 @@ input {
 }
 
 textarea {
-  min-height: 220px;
+  min-height: 150px;
   resize: vertical;
   padding: 12px;
   font-size: 14px;
@@ -125,7 +126,7 @@ textarea {
 
 .capture-dock {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
 
@@ -155,6 +156,46 @@ button:disabled {
   gap: 8px;
   border-top: 1px solid var(--line);
   padding-top: 12px;
+}
+
+.preview {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.preview span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.preview strong {
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.preview p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.preview pre {
+  max-height: 150px;
+  margin: 0;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--surface);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
 }
 
 .frames strong {
