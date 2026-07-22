@@ -897,12 +897,54 @@ function sourceKindLabel() {
 }
 
 function defaultNoteTitle() {
-  const sourceTitle = state.video?.title || state.page?.title || "";
-  return sourceTitle.replace(/\s+-\s+YouTube$/i, "").trim();
+  if (state.video) return prettyTitle(state.video.title, state.video.url);
+  if (state.page) return prettyTitle(state.page.title, state.page.url);
+  return "";
 }
 
 function currentNoteTitle(fallback) {
   return elements.noteTitle.value.trim() || String(fallback || "Apunte").trim() || "Apunte";
+}
+
+function prettyTitle(title, url) {
+  const rawTitle = cleanTitle(title);
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(url);
+  } catch {
+    return rawTitle;
+  }
+
+  const hostname = parsedUrl.hostname.replace(/^www\./, "");
+  if (hostname === "github.com") {
+    const [owner, repo] = parsedUrl.pathname.split("/").filter(Boolean);
+    if (owner && repo) return `${startCase(repo)} - ${owner}`;
+  }
+
+  if (hostname.includes("linkedin.com")) {
+    return `LinkedIn - ${rawTitle || isoDate(new Date())}`;
+  }
+
+  if (hostname.includes("youtube.com") || hostname.includes("youtu.be")) {
+    return rawTitle.replace(/\s+-\s+YouTube$/i, "");
+  }
+
+  if (!rawTitle) return hostname;
+  return rawTitle.includes(hostname) ? rawTitle : `${rawTitle} - ${hostname}`;
+}
+
+function cleanTitle(value) {
+  return String(value || "")
+    .replace(/\s+-\s+GitHub$/i, "")
+    .replace(/^GitHub\s+-\s+/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function startCase(value) {
+  return String(value || "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function setMessage(message, className = "") {

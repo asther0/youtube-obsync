@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Obsync",
   "description": "Capture web and video moments as connected Obsidian notes.",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "action": {
     "default_title": "Obsync"
   },

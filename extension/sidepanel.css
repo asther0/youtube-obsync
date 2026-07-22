@@ -220,7 +220,7 @@ button:disabled {
 
 .frames {
   display: grid;
-  gap: 8px;
+  gap: 7px;
   border-top: 1px solid var(--line);
   padding-top: 12px;
 }
@@ -271,19 +271,19 @@ button:disabled {
 
 .strip {
   display: flex;
-  gap: 8px;
-  min-height: 58px;
+  gap: 7px;
+  min-height: 46px;
   max-width: 100%;
   overflow-x: auto;
 }
 
 .strip img {
-  flex: 0 0 88px;
-  width: 88px;
-  height: 56px;
-  max-width: 88px;
+  flex: 0 0 72px;
+  width: 72px;
+  height: 44px;
+  max-width: 72px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 5px;
   object-fit: cover;
 }
 
@@ -410,6 +410,7 @@ button:disabled {
 #message {
   min-height: 18px;
   margin: 0;
+  font-size: 12px;
   line-height: 1.35;
 }
 

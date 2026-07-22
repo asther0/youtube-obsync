@@ -113,7 +113,7 @@ function selectScreenRegion() {
       "position: fixed",
       "inset: 0",
       "z-index: 2147483647",
-      "background: rgba(0, 0, 0, 0.28)",
+      "background: rgba(0, 0, 0, 0.12)",
       "cursor: crosshair",
       "user-select: none"
     ].join(";");
@@ -122,26 +122,26 @@ function selectScreenRegion() {
     selection.style.cssText = [
       "position: fixed",
       "display: none",
-      "border: 2px solid white",
-      "border-radius: 6px",
-      "background: rgba(124, 92, 255, 0.18)",
-      "box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.48)",
+      "border: 1px solid white",
+      "border-radius: 4px",
+      "background: rgba(124, 92, 255, 0.08)",
+      "box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.22)",
       "pointer-events: none"
     ].join(";");
 
     const hint = document.createElement("div");
-    hint.textContent = "Arrastra para recortar · Esc para cancelar";
+    hint.textContent = "Arrastra · Esc";
     hint.style.cssText = [
       "position: fixed",
-      "top: 16px",
+      "top: 10px",
       "left: 50%",
       "transform: translateX(-50%)",
-      "padding: 8px 12px",
+      "padding: 5px 9px",
       "border-radius: 999px",
-      "background: rgba(20, 20, 24, 0.92)",
+      "background: rgba(20, 20, 24, 0.8)",
       "color: white",
-      "font: 700 13px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-      "box-shadow: 0 8px 28px rgba(0, 0, 0, 0.32)",
+      "font: 700 11px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      "box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2)",
       "pointer-events: none"
     ].join(";");
 
