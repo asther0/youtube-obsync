@@ -9,7 +9,7 @@ El proyecto también incluye **Comedy Graph**, una ruta especializada para anali
 - Trae transcripciones de YouTube usando SearchAPI `youtube_transcripts`.
 - Permite marcar recortes de video por inicio y fin.
 - Usa OpenAI para extraer notas atómicas, carpeta sugerida, tags y backlinks.
-- Sincroniza archivos `.md` directamente en un vault local de Obsidian usando File System Access API.
+- Sincroniza archivos `.md` e imágenes directamente en un vault local de Obsidian usando Local REST API.
 - Incluye transcript timestamped dentro del Markdown guardado.
 - Mantiene `/` como Comedy Graph para explorar estructura cómica en un grafo interactivo.
 
@@ -32,6 +32,8 @@ OPENAI_API_KEY=...
 OPENAI_ANALYSIS_MODEL=gpt-4o-mini
 SEARCHAPI_KEY=...
 ```
+
+Para la demo atómica completa, `OPENAI_API_KEY` y `SEARCHAPI_KEY` son requeridas. Si el backend de IA/transcript falla, la extensión conserva el flujo como captura manual visible, pero no lo presenta como nota generada por IA.
 
 ## Flujo
 
@@ -60,16 +62,18 @@ bun run dev -- -p 4177
 5. Haz click en **Load unpacked** y selecciona la carpeta `extension/`.
 6. Abre un video de YouTube.
 7. Abre la extensión desde un video de YouTube. Se abrirá como side panel.
-8. Haz click en **Connect**, pega el token sin la palabra `Bearer` y prueba la conexión con **Test Obsidian**.
-9. Elige la carpeta destino en **Folder**.
+8. Haz click en **Conectar**, pega el token sin la palabra `Bearer` y prueba la conexión con **Probar Obsidian**.
+9. Elige la carpeta destino en **Carpeta**.
 10. Usa:
-   - **Capture** una vez para marcar el inicio del recorte.
-   - **Shot** para capturar frames importantes.
-   - **Save** para cerrar el recorte, generar la nota y guardarla en Obsidian.
+   - **Capturar** una vez para marcar el inicio del recorte.
+   - **Imagen** para capturar frames importantes.
+   - **Guardar** para cerrar el recorte, capturar el frame final, generar la nota y guardarla en Obsidian.
 
 La extensión usa `chrome.tabs.captureVisibleTab`, por lo que captura lo visible de la pestaña como evidencia visual. Las imágenes se guardan en `Attachments/youtube-obsync/` y se embeben en el Markdown.
 
-El backend local sigue siendo necesario para traer transcript con SearchAPI, generar notas atómicas con OpenAI y escribir en Obsidian sin depender del certificado local de Chrome. El plugin suele responder en `https://127.0.0.1:27124`; el sidebar lo detecta automáticamente desde **Test Obsidian**.
+El backend local sigue siendo necesario para traer transcript con SearchAPI, generar notas atómicas con OpenAI y escribir en Obsidian sin depender del certificado local de Chrome. El plugin suele responder en `https://127.0.0.1:27124`; el sidebar lo detecta automáticamente desde **Probar Obsidian**.
+
+La extensión usa `<all_urls>` en `host_permissions` para permitir `chrome.tabs.captureVisibleTab` desde el side panel durante la demo. El backend proxy solo acepta endpoints locales de Obsidian (`localhost`/`127.0.0.1` en puertos `27123` o `27124`).
 
 ## Uso De Referencias
 
@@ -84,7 +88,7 @@ Decisiones humanas:
 - Pivotar desde entrenamiento de crowdwork hacia análisis visual de videos de comedia.
 - Expandir el producto hacia Obsync como herramienta general para aprender de videos.
 - Usar SearchAPI para transcripciones de YouTube.
-- Priorizar sync web-first con Obsidian antes de una extensión Chrome completa.
+- Priorizar un side panel de Chrome para capturar momentos de YouTube sin salir del video.
 
 Codex aceleró:
 
@@ -92,7 +96,7 @@ Codex aceleró:
 - Endpoints de SearchAPI y OpenAI.
 - Esquema estructurado para grafo de comedia.
 - Generación de notas atómicas compatibles con Obsidian.
-- Sync local usando File System Access API.
+- Sync local usando Obsidian Local REST API.
 
 ## Track Recomendado
 

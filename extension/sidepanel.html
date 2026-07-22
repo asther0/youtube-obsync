@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -11,31 +11,31 @@
       <header class="topbar">
         <div>
           <strong>YouTube Obsync</strong>
-          <span id="connection">Set token</span>
+          <span id="connection">Falta token</span>
         </div>
-        <button id="settingsToggle" title="Connection">Connect</button>
+        <button id="settingsToggle" title="Conexión" aria-expanded="false">Conectar</button>
       </header>
 
       <section class="source">
-        <span id="videoTitle">Open a YouTube video</span>
-        <strong id="range">No active clip</strong>
+        <span id="videoTitle">Abre un video de YouTube</span>
+        <strong id="range">Sin recorte</strong>
       </section>
 
       <label class="field">
-        Folder
+        Carpeta
         <select id="folderSelect"></select>
       </label>
 
-      <textarea id="userNote" placeholder="Write the idea you want to keep..."></textarea>
+      <textarea id="userNote" placeholder="Escribe la idea que quieres guardar de este momento..."></textarea>
 
       <section class="capture-dock">
-        <button id="clipBtn" class="primary">Capture</button>
-        <button id="screenshotBtn" title="Screenshot">Shot</button>
+        <button id="clipBtn" class="primary">Capturar</button>
+        <button id="screenshotBtn" title="Captura de pantalla">Imagen</button>
       </section>
 
       <section class="frames">
         <div>
-          <span>Screenshots</span>
+          <span>Capturas</span>
           <strong id="screenshotCount">0</strong>
         </div>
         <div id="screenshotStrip" class="strip"></div>
@@ -43,20 +43,20 @@
 
       <section id="settingsPanel" class="settings" hidden>
         <div class="connection-tools">
-          <button id="testConnectionBtn">Test Obsidian</button>
-          <span id="connectionDetail">Not tested</span>
+          <button id="testConnectionBtn">Probar Obsidian</button>
+          <span id="connectionDetail">Sin probar</span>
         </div>
         <label>
-          Obsidian token
+          Token de Obsidian
           <input id="obsidianToken" type="password" placeholder="Local REST API token" />
         </label>
         <label>
-          Folders
+          Carpetas
           <input id="folders" value="Inbox, Learning, Ideas, Frameworks, Examples" />
         </label>
-        <button id="saveSettingsBtn">Save settings</button>
+        <button id="saveSettingsBtn">Guardar conexión</button>
         <details class="advanced-settings">
-          <summary>Advanced</summary>
+          <summary>Avanzado</summary>
           <label>
             Backend
             <input id="backendUrl" value="http://localhost:4177" />
@@ -68,7 +68,7 @@
         </details>
       </section>
 
-      <p id="message"></p>
+      <p id="message" aria-live="polite"></p>
     </main>
     <script src="sidepanel.js"></script>
   </body>

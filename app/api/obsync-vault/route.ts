@@ -32,9 +32,14 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const target = parseAllowedLocalUrl(payload.obsidianUrl);
+    if (!target.ok) {
+      return corsResponse({ error: target.error }, 400);
+    }
+
     if (payload.action === "test") {
       const response = await localRestRequest({
-        baseUrl: payload.obsidianUrl,
+        baseUrl: target.url,
         token: payload.obsidianToken,
         method: "GET",
         pathname: "/"
@@ -42,7 +47,7 @@ export async function POST(request: NextRequest) {
       const status = parseStatus(response.body);
 
       return corsResponse({
-        ok: response.statusCode >= 200 && response.statusCode < 500 && status.authenticated !== false,
+        ok: response.statusCode >= 200 && response.statusCode < 300 && status.authenticated === true,
         status: response.statusCode,
         authenticated: status.authenticated
       });
@@ -56,7 +61,7 @@ export async function POST(request: NextRequest) {
       const body =
         payload.encoding === "base64" ? Buffer.from(payload.body, "base64") : Buffer.from(payload.body);
       const response = await localRestRequest({
-        baseUrl: payload.obsidianUrl,
+        baseUrl: target.url,
         token: payload.obsidianToken,
         method: "PUT",
         pathname: `/vault/${encodeVaultPath(payload.path)}`,
@@ -140,6 +145,30 @@ function statusMessage(status: number) {
   if (status === 401 || status === 403) return "Token rechazado. Pega el token sin la palabra Bearer.";
   if (status === 404) return "No se pudo escribir en esa ruta del vault.";
   return `Obsidian respondio con status ${status}.`;
+}
+
+function parseAllowedLocalUrl(input: string): { ok: true; url: string } | { ok: false; error: string } {
+  try {
+    const url = new URL(input);
+    const allowedHosts = new Set(["127.0.0.1", "localhost"]);
+    const allowedPorts = new Set(["27123", "27124"]);
+
+    if (!["http:", "https:"].includes(url.protocol)) {
+      return { ok: false, error: "El endpoint de Obsidian debe usar http o https." };
+    }
+
+    if (!allowedHosts.has(url.hostname)) {
+      return { ok: false, error: "Por seguridad, Obsidian debe apuntar a localhost o 127.0.0.1." };
+    }
+
+    if (!allowedPorts.has(url.port)) {
+      return { ok: false, error: "Usa el puerto local 27123 o 27124 para Obsidian." };
+    }
+
+    return { ok: true, url: `${url.protocol}//${url.host}` };
+  } catch {
+    return { ok: false, error: "URL de Obsidian inválida." };
+  }
 }
 
 function parseStatus(body: string) {

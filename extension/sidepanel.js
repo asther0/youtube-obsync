@@ -51,6 +51,7 @@ async function init() {
   });
   elements.settingsToggle.addEventListener("click", () => {
     elements.settingsPanel.hidden = !elements.settingsPanel.hidden;
+    elements.settingsToggle.setAttribute("aria-expanded", String(!elements.settingsPanel.hidden));
   });
 
   window.setInterval(async () => {
@@ -60,34 +61,36 @@ async function init() {
 }
 
 async function loadSettings() {
-  const settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
+  const settings = await getSettings();
 
   elements.backendUrl.value = settings.backendUrl;
   elements.obsidianUrl.value = settings.obsidianUrl;
   elements.obsidianToken.value = settings.obsidianToken;
   elements.folders.value = settings.folders;
   renderFolders(splitList(settings.folders), settings.selectedFolder);
-  elements.connection.textContent = settings.obsidianToken ? "Obsidian ready" : "Set token";
+  elements.connection.textContent = settings.obsidianToken ? "Obsidian listo" : "Falta token";
 }
 
 async function saveSettings() {
   await chrome.storage.sync.set({
     backendUrl: elements.backendUrl.value.trim(),
     obsidianUrl: elements.obsidianUrl.value.trim(),
-    obsidianToken: elements.obsidianToken.value.trim(),
     folders: elements.folders.value.trim(),
     selectedFolder: elements.folderSelect.value
   });
-  setMessage("Settings saved.");
+  await chrome.storage.local.set({
+    obsidianToken: normalizeToken(elements.obsidianToken.value)
+  });
+  setMessage("Conexión guardada.");
   await loadSettings();
   await testConnection({ silent: true });
 }
 
 async function testConnection(options = {}) {
-  const settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
+  const settings = await getSettings();
   if (!settings.obsidianToken) {
-    elements.connection.textContent = "Set token";
-    elements.connectionDetail.textContent = "Missing token";
+    elements.connection.textContent = "Falta token";
+    elements.connectionDetail.textContent = "Pega el token local";
     return false;
   }
 
@@ -118,18 +121,18 @@ async function testConnection(options = {}) {
       if (response.ok && data.ok) {
         await chrome.storage.sync.set({ obsidianUrl: url });
         elements.obsidianUrl.value = url;
-        elements.connection.textContent = "Obsidian ready";
-        elements.connectionDetail.textContent = `Connected on ${url}`;
-        if (!options.silent) setMessage("Obsidian connected.", "saved");
+        elements.connection.textContent = "Obsidian listo";
+        elements.connectionDetail.textContent = `Conectado en ${url}`;
+        if (!options.silent) setMessage("Obsidian conectado.", "saved");
         return true;
       }
     } catch {
     }
   }
 
-  elements.connection.textContent = "Disconnected";
-  elements.connectionDetail.textContent = "Check plugin, port, or token";
-  if (!options.silent) setMessage("Could not reach Obsidian. Keep Obsidian open and paste the token without Bearer.");
+  elements.connection.textContent = "Sin conexión";
+  elements.connectionDetail.textContent = "Revisa plugin, puerto o token";
+  if (!options.silent) setMessage("No pude llegar a Obsidian. Déjalo abierto y pega el token sin Bearer.");
   return false;
 }
 
@@ -144,13 +147,44 @@ function renderFolders(folders, selectedFolder) {
   }
 }
 
+async function getSettings() {
+  const preferences = await chrome.storage.sync.get({
+    backendUrl: DEFAULT_SETTINGS.backendUrl,
+    obsidianUrl: DEFAULT_SETTINGS.obsidianUrl,
+    folders: DEFAULT_SETTINGS.folders,
+    selectedFolder: DEFAULT_SETTINGS.selectedFolder,
+    obsidianToken: ""
+  });
+  const secrets = await chrome.storage.local.get({
+    obsidianToken: DEFAULT_SETTINGS.obsidianToken
+  });
+  const migratedToken = normalizeToken(secrets.obsidianToken || preferences.obsidianToken);
+
+  if (!secrets.obsidianToken && preferences.obsidianToken) {
+    await chrome.storage.local.set({ obsidianToken: migratedToken });
+    await chrome.storage.sync.remove("obsidianToken");
+  }
+
+  return {
+    ...DEFAULT_SETTINGS,
+    ...preferences,
+    obsidianToken: migratedToken
+  };
+}
+
+function normalizeToken(value) {
+  return String(value || "")
+    .trim()
+    .replace(/^Bearer\s+/i, "");
+}
+
 async function refreshVideo(options = {}) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   state.tab = tab;
 
   if (!tab?.id || !tab.url?.includes("youtube.com/watch")) {
     state.video = null;
-    if (!options.silent) setMessage("Open a YouTube video.");
+    if (!options.silent) setMessage("Abre un video de YouTube.");
     return;
   }
 
@@ -175,7 +209,7 @@ async function startClip() {
 
   state.start = state.video.currentTime;
   state.screenshots = [];
-  setMessage(`Capture started at ${formatTime(state.start)}.`);
+  setMessage(`Recorte iniciado en ${formatTime(state.start)}.`);
   render();
 }
 
@@ -190,47 +224,65 @@ async function toggleClip() {
 async function takeScreenshot() {
   await refreshVideo({ silent: true });
   if (!state.tab?.windowId) {
-    setMessage("Open a YouTube video first.");
+    setMessage("Abre un video de YouTube primero.");
     return;
   }
+
+  await appendScreenshot();
+  setMessage("Imagen añadida.");
+  render();
+}
+
+async function appendFinalScreenshot(end) {
+  const alreadyCapturedFinalFrame = state.screenshots.some((screenshot) => Math.abs(screenshot.timestamp - end) <= 1);
+  if (alreadyCapturedFinalFrame) return;
+
+  try {
+    await appendScreenshot(end);
+  } catch {
+    // The note should still be saved when Chrome blocks visible-tab capture.
+  }
+}
+
+async function appendScreenshot(timestampOverride) {
+  if (!state.tab?.windowId) throw new Error("No hay pestaña activa para capturar.");
 
   const dataUrl = await chrome.tabs.captureVisibleTab(state.tab.windowId, { format: "png" });
   state.screenshots.push({
     dataUrl,
-    timestamp: state.video?.currentTime ?? 0
+    timestamp: timestampOverride ?? state.video?.currentTime ?? 0
   });
-  setMessage("Screenshot added.");
-  render();
 }
 
 async function saveClip() {
   await refreshVideo();
   if (!state.video || state.start === null) {
-    setMessage("Capture a start point first.");
+    setMessage("Marca el inicio del recorte primero.");
     return;
   }
 
-  const settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
+  const settings = await getSettings();
   const selectedFolder = elements.folderSelect.value || "Inbox";
   if (!settings.obsidianToken) {
-    setMessage("Add your Obsidian token in Connect.");
+    setMessage("Agrega tu token de Obsidian en Conectar.");
     elements.settingsPanel.hidden = false;
     return;
   }
 
   const connected = await testConnection({ silent: true });
   if (!connected) {
-    setMessage("Obsidian is not reachable. Open Connect and test it.");
+    setMessage("Obsidian no responde. Abre Conectar y pruébalo.");
     elements.settingsPanel.hidden = false;
     return;
   }
 
   const end = Math.max(state.start + 1, state.video.currentTime);
-  setMessage("Saving note...");
+  await appendFinalScreenshot(end);
+  setMessage("Guardando nota...");
   render(true);
 
   try {
-    const freshSettings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
+    const freshSettings = await getSettings();
     const capture = await generateCapture(freshSettings, selectedFolder, end);
 
     await chrome.storage.sync.set({ selectedFolder });
@@ -238,9 +290,9 @@ async function saveClip() {
     state.start = null;
     state.screenshots = [];
     elements.userNote.value = "";
-    setMessage(capture.localFallback ? `Saved manual note to ${selectedFolder}.` : `Saved to ${selectedFolder}.`, "saved");
+    setMessage(capture.localFallback ? `Nota manual guardada en ${selectedFolder}.` : `Guardado en ${selectedFolder}.`, "saved");
   } catch (error) {
-    setMessage(error instanceof Error ? error.message : "Could not save clip.");
+    setMessage(error instanceof Error ? error.message : "No pude guardar el recorte.");
   } finally {
     render(false);
   }
@@ -282,14 +334,14 @@ function buildManualCapture(selectedFolder, end) {
       end
     },
     rangeTitle: noteTitle,
-    summary: elements.userNote.value.trim() || "Manual capture from YouTube.",
-    transcriptMarkdown: "Transcript unavailable. Manual note and screenshot were captured locally.",
+    summary: elements.userNote.value.trim() || "Recorte manual de YouTube.",
+    transcriptMarkdown: "Transcripción no disponible. La nota manual y las capturas se guardaron localmente.",
     notes: [
       {
         title: noteTitle,
         folder: selectedFolder,
-        idea: elements.userNote.value.trim() || "Captured YouTube moment.",
-        evidence: `Captured from ${state.video.title} at ${formatTime(state.start)}.`,
+        idea: elements.userNote.value.trim() || "Momento capturado desde YouTube.",
+        evidence: `Capturado desde ${state.video.title} en ${formatTime(state.start)}.`,
         tags: ["youtube", "obsync"],
         backlinks: [],
         filename: `${slug(noteTitle)}.md`
@@ -312,7 +364,7 @@ async function writeCaptureToObsidian(capture, settings, video, screenshots, sel
   }
 
   for (const note of capture.notes) {
-    const destinationFolder = selectedFolder || note.folder || "Inbox";
+    const destinationFolder = safeFolder(selectedFolder || note.folder || "Inbox");
     const markdown = buildMarkdown(note, capture, video, screenshotLinks, destinationFolder);
     const path = `${destinationFolder}/${safeFilename(note.filename || note.title)}`;
     await putVaultFile(settings, path, markdown, "text/markdown", "text");
@@ -338,11 +390,11 @@ async function putVaultFile(settings, path, body, contentType, encoding) {
     });
     data = await response.json();
   } catch {
-    throw new Error("Backend is unreachable. Run bun run dev -- -p 4177.");
+    throw new Error("El backend no responde. Corre bun run dev -- -p 4177.");
   }
 
   if (!response.ok) {
-    throw new Error(data?.error || "Obsidian write failed.");
+    throw new Error(data?.error || "No pude escribir en Obsidian.");
   }
 }
 
@@ -391,20 +443,20 @@ ${capture.transcriptMarkdown || "No transcript lines found for this range."}
 }
 
 function render(disabled = false) {
-  elements.videoTitle.textContent = state.video?.title || "Open a YouTube video";
+  elements.videoTitle.textContent = state.video?.title || "Abre un video de YouTube";
   elements.range.textContent =
     state.start === null
-      ? "No active clip"
+      ? "Sin recorte"
       : `${formatTime(state.start)} -> ${state.video ? formatTime(state.video.currentTime) : "..."}`;
   elements.screenshotCount.textContent = String(state.screenshots.length);
-  elements.clipBtn.textContent = state.start === null ? "Capture" : "Save";
+  elements.clipBtn.textContent = state.start === null ? "Capturar" : "Guardar";
   elements.clipBtn.disabled = disabled || !state.video;
   elements.screenshotBtn.disabled = disabled || !state.video;
   elements.screenshotStrip.innerHTML = "";
   for (const screenshot of state.screenshots) {
     const image = document.createElement("img");
     image.src = screenshot.dataUrl;
-    image.alt = `Screenshot at ${formatTime(screenshot.timestamp)}`;
+    image.alt = `Captura en ${formatTime(screenshot.timestamp)}`;
     elements.screenshotStrip.append(image);
   }
 }
@@ -430,8 +482,28 @@ function dataUrlToBase64(dataUrl) {
 }
 
 function safeFilename(value) {
-  const filename = String(value || "obsync-note").endsWith(".md") ? value : `${value}.md`;
-  return filename.replace(/[\\:*?"<>|]/g, "-");
+  const withoutExtension = String(value || "obsync-note").replace(/\.md$/i, "");
+  return `${safePathSegment(withoutExtension) || "obsync-note"}.md`;
+}
+
+function safeFolder(value) {
+  const segments = String(value || "Inbox")
+    .split("/")
+    .map(safePathSegment)
+    .filter(Boolean);
+  return segments.length ? segments.join("/") : "Inbox";
+}
+
+function safePathSegment(value) {
+  const cleaned = String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\\/:*?"<>|]/g, "-")
+    .replace(/\.+/g, ".")
+    .trim();
+
+  if (!cleaned || cleaned === "." || cleaned === "..") return "";
+  return cleaned.slice(0, 80);
 }
 
 function slug(value) {
