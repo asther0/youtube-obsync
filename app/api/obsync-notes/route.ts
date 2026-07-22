@@ -95,12 +95,13 @@ const fallback = {
 };
 
 export async function POST(request: NextRequest) {
-  const { videoUrl, start, end, transcripts, vaultMap } = (await request.json()) as {
+  const { videoUrl, start, end, transcripts, vaultMap, userNote } = (await request.json()) as {
     videoUrl?: string;
     start?: number;
     end?: number;
     transcripts?: TranscriptSegment[];
     vaultMap?: VaultMap;
+    userNote?: string;
   };
   const apiKey = process.env.OPENAI_API_KEY;
 
@@ -151,7 +152,8 @@ export async function POST(request: NextRequest) {
               tags: vaultMap?.tags?.slice(0, 80) ?? []
             },
             instruction:
-              "Genera notas atomicas para Obsidian. Cada nota debe guardar una sola idea, no un resumen del clip. Sugiere folder usando las carpetas reales del vaultMap cuando encajen; si ninguna encaja, usa Inbox. Usa backlinks a notas existentes del vaultMap cuando sean relevantes, y crea nuevos backlinks solo si ayudan a que el conocimiento quede conectado. Evidence debe ser breve y basada en el rango, no una cita larga. Filename debe ser seguro para archivo markdown. Prioriza que el usuario pueda encontrar esta nota despues por tema, practica, framework o pregunta.",
+              "Genera notas atomicas para Obsidian. Cada nota debe guardar una sola idea, no un resumen del clip. Sugiere folder usando las carpetas reales del vaultMap cuando encajen; si ninguna encaja, usa Inbox. Usa backlinks a notas existentes del vaultMap cuando sean relevantes, y crea nuevos backlinks solo si ayudan a que el conocimiento quede conectado. Evidence debe ser breve y basada en el rango, no una cita larga. Filename debe ser seguro para archivo markdown. Prioriza que el usuario pueda encontrar esta nota despues por tema, practica, framework o pregunta. Si userNote existe, usala como intencion del usuario y no como texto final obligatorio.",
+            userNote: userNote?.slice(0, 1200) ?? "",
             transcript: selectedTranscript
           })
         }
