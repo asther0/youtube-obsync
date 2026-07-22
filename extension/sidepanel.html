@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>YouTube Obsync</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <main class="note-shell">
+      <header class="topbar">
+        <div>
+          <strong>YouTube Obsync</strong>
+          <span id="connection">Set token</span>
+        </div>
+        <button id="settingsToggle" title="Settings">•••</button>
+      </header>
+
+      <section class="source">
+        <span id="videoTitle">Open a YouTube video</span>
+        <strong id="range">No active clip</strong>
+      </section>
+
+      <label class="field">
+        Save to
+        <select id="folderSelect"></select>
+      </label>
+
+      <textarea id="userNote" placeholder="Write what you are learning here..."></textarea>
+
+      <section class="capture-row">
+        <button id="startBtn">Start</button>
+        <button id="screenshotBtn">Screenshot</button>
+        <button id="saveBtn" class="primary">Save</button>
+      </section>
+
+      <section class="frames">
+        <div>
+          <span>Screenshots</span>
+          <strong id="screenshotCount">0</strong>
+        </div>
+        <div id="screenshotStrip" class="strip"></div>
+      </section>
+
+      <section id="settingsPanel" class="settings" hidden>
+        <label>
+          Backend
+          <input id="backendUrl" value="http://localhost:4177" />
+        </label>
+        <label>
+          Obsidian REST URL
+          <input id="obsidianUrl" value="http://127.0.0.1:27123" />
+        </label>
+        <label>
+          Obsidian token
+          <input id="obsidianToken" type="password" placeholder="Local REST API token" />
+        </label>
+        <label>
+          Folders
+          <input id="folders" value="Inbox, Learning, Ideas, Frameworks, Examples" />
+        </label>
+        <button id="saveSettingsBtn">Save settings</button>
+      </section>
+
+      <p id="message"></p>
+    </main>
+    <script src="sidepanel.js"></script>
+  </body>
+</html>

@@ -44,7 +44,7 @@ SEARCHAPI_KEY=...
 
 ## Chrome Extension MVP
 
-La carpeta `extension/` contiene una extensión Chrome mínima para probar el flujo natural desde YouTube.
+La carpeta `extension/` contiene una extensión Chrome con side panel para probar el flujo natural desde YouTube.
 
 Para probarla:
 
@@ -59,17 +59,21 @@ bun run dev -- -p 4177
 4. Activa **Developer mode**.
 5. Haz click en **Load unpacked** y selecciona la carpeta `extension/`.
 6. Abre un video de YouTube.
-7. Abre la extensión y configura:
+7. Abre la extensión desde un video de YouTube. Se abrirá como side panel.
+8. Configura:
    - Backend: `http://localhost:4177`
    - Obsidian REST URL: `http://127.0.0.1:27123`
    - Obsidian token
    - Carpetas canónicas separadas por comas
-8. Usa:
+9. Elige la carpeta destino en **Save to**.
+10. Usa:
    - **Start** para marcar inicio.
    - **Screenshot** para capturar la pantalla actual.
    - **Save** para cerrar el recorte, generar la nota y guardarla en Obsidian.
 
 La extensión usa `chrome.tabs.captureVisibleTab`, por lo que captura lo visible de la pestaña como evidencia visual. Las imágenes se guardan en `Attachments/youtube-obsync/` y se embeben en el Markdown.
+
+El backend local sigue siendo necesario para dos partes: traer transcript con SearchAPI y generar notas atómicas con OpenAI. La escritura final a Obsidian ocurre desde la extensión vía Local REST API.
 
 ## Uso De Referencias
 

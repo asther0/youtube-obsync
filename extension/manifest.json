@@ -4,10 +4,15 @@
   "description": "Capture YouTube moments as connected Obsidian notes.",
   "version": "0.1.0",
   "action": {
-    "default_title": "YouTube Obsync",
-    "default_popup": "popup.html"
+    "default_title": "YouTube Obsync"
   },
-  "permissions": ["activeTab", "scripting", "tabs", "storage"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "permissions": ["activeTab", "scripting", "tabs", "storage", "sidePanel"],
   "host_permissions": [
     "https://www.youtube.com/*",
     "http://localhost:4177/*",
