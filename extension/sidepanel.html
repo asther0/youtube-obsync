@@ -3,29 +3,35 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>YouTube Obsync</title>
+    <title>Obsync</title>
     <link rel="stylesheet" href="sidepanel.css" />
   </head>
   <body>
     <main class="note-shell">
       <header class="topbar">
         <div>
-          <strong>YouTube Obsync</strong>
+          <strong>Obsync</strong>
           <span id="connection">Falta token</span>
         </div>
         <button id="settingsToggle" title="Conexión" aria-expanded="false">Conectar</button>
       </header>
 
       <section class="source">
-        <span id="videoTitle">Abre un video de YouTube</span>
+        <span id="videoTitle">Abre una página o video</span>
         <strong id="range">Sin recorte</strong>
       </section>
 
       <textarea id="userNote" placeholder="Escribe la idea que quieres guardar de este momento..."></textarea>
 
+      <section class="status-row" aria-label="Estado del apunte">
+        <button class="status-pill active" data-status="pendiente">Pendiente</button>
+        <button class="status-pill" data-status="revisado">Revisado</button>
+      </section>
+
       <section class="capture-dock">
         <button id="screenshotBtn" title="Captura de pantalla">Imagen</button>
-        <button id="clipBtn" class="primary">Iniciar extracto</button>
+        <button id="noteBtn" class="primary">Guardar apunte</button>
+        <button id="clipBtn">Iniciar extracto</button>
       </section>
 
       <section class="frames">

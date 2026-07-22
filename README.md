@@ -1,12 +1,13 @@
 # Obsync
 
-Obsync convierte recortes de videos de YouTube en notas atómicas conectadas con Obsidian. Pega un video, conecta tu vault local, marca inicio y fin del recorte, y guarda Markdown con transcript, fuente, carpeta sugerida, tags y backlinks.
+Obsync convierte contenido web y recortes de video en apuntes conectados con Obsidian. Mientras lees o ves un video, puedes escribir una nota, capturar una imagen, marcar un extracto con transcripción cuando exista video y guardar todo como Markdown en tu vault.
 
 El proyecto también incluye **Comedy Graph**, una ruta especializada para analizar videos de comedia como grafos de ideas, callbacks y conexiones.
 
 ## Qué Hace
 
-- Trae transcripciones de YouTube usando SearchAPI `youtube_transcripts`.
+- Guarda apuntes rápidos desde cualquier página web con URL fuente, estado y capturas.
+- Trae transcripciones de YouTube usando SearchAPI `youtube_transcripts` cuando capturas un extracto de video.
 - Permite marcar recortes de video por inicio y fin.
 - Usa OpenAI para extraer notas atómicas, carpeta sugerida, tags y backlinks.
 - Sincroniza archivos `.md` e imágenes directamente en un vault local de Obsidian usando Local REST API.
@@ -65,9 +66,11 @@ bun run dev -- -p 4177
 8. Haz click en **Conectar**, pega el token sin la palabra `Bearer` y prueba la conexión con **Probar Obsidian**.
 9. Elige la carpeta destino en **Carpeta**.
 10. Usa:
-   - **Imagen** para capturar frames importantes mientras ves el video.
-   - **Iniciar extracto** para marcar desde dónde quieres guardar transcripción.
-   - **Cerrar y guardar** para cerrar el rango, traer la transcripción, interpretarla con OpenAI y guardar la nota en Obsidian.
+   - **Pendiente / Revisado** para marcar el estado del apunte.
+   - **Imagen** para capturar evidencia visual de cualquier página.
+   - **Guardar apunte** para guardar URL, nota, estado e imágenes en Obsidian.
+   - **Iniciar extracto** en YouTube para marcar desde dónde quieres guardar transcripción.
+   - **Cerrar y guardar** para cerrar el rango, traer la transcripción, interpretarla con OpenAI y guardar el extracto en Obsidian.
 
 La extensión usa `chrome.tabs.captureVisibleTab`, por lo que captura lo visible de la pestaña como evidencia visual. Las imágenes se guardan en `Attachments/youtube-obsync/` y se embeben en el Markdown.
 

@@ -26,17 +26,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message?.type !== "GET_ACTIVE_YOUTUBE_STATE") return false;
+  if (message?.type !== "GET_ACTIVE_PAGE_STATE") return false;
 
   chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
-    if (!tab?.id || !tab.url?.includes("youtube.com/watch")) {
-      sendResponse({ ok: false, error: "Abre un video de YouTube." });
+    if (!tab?.id || !isCapturablePage(tab.url)) {
+      sendResponse({ ok: false, error: "Abre una página web capturable." });
+      return;
+    }
+
+    const page = {
+      url: tab.url,
+      title: tab.title || "Página sin título",
+      isYouTube: tab.url.includes("youtube.com/watch")
+    };
+
+    if (!page.isYouTube) {
+      sendResponse({ ok: true, page, tab });
       return;
     }
 
     try {
       const response = await sendVideoStateMessage(tab.id);
-      sendResponse({ ...response, tab });
+      sendResponse({ ...response, page, tab });
     } catch {
       try {
         await chrome.scripting.executeScript({
@@ -44,7 +55,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           files: ["youtube-content.js"]
         });
         const response = await sendVideoStateMessage(tab.id);
-        sendResponse({ ...response, tab });
+        sendResponse({ ...response, page, tab });
       } catch (error) {
         sendResponse({
           ok: false,
@@ -59,4 +70,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 async function sendVideoStateMessage(tabId) {
   return await chrome.tabs.sendMessage(tabId, { type: "GET_YOUTUBE_VIDEO_STATE" });
+}
+
+function isCapturablePage(url = "") {
+  return /^https?:\/\//.test(url);
 }

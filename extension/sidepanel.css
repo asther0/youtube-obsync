@@ -126,8 +126,26 @@ textarea {
 
 .capture-dock {
   display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.status-row {
+  display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+
+.status-pill {
+  min-height: 32px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.status-pill.active {
+  border-color: rgba(124, 92, 255, 0.5);
+  background: var(--accent-soft);
+  color: var(--ink);
 }
 
 button {

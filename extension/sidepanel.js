@@ -1,9 +1,11 @@
 const state = {
   tab: null,
+  page: null,
   video: null,
   start: null,
   screenshots: [],
-  lastCapture: null
+  lastCapture: null,
+  noteStatus: "pendiente"
 };
 
 const DEFAULT_SETTINGS = {
@@ -20,8 +22,10 @@ const elements = {
   range: document.querySelector("#range"),
   folderSelect: document.querySelector("#folderSelect"),
   userNote: document.querySelector("#userNote"),
+  noteBtn: document.querySelector("#noteBtn"),
   clipBtn: document.querySelector("#clipBtn"),
   screenshotBtn: document.querySelector("#screenshotBtn"),
+  statusPills: Array.from(document.querySelectorAll(".status-pill")),
   screenshotCount: document.querySelector("#screenshotCount"),
   screenshotStrip: document.querySelector("#screenshotStrip"),
   transcriptPreview: document.querySelector("#transcriptPreview"),
@@ -50,8 +54,15 @@ async function init() {
   await refreshVideo();
   render();
 
+  elements.noteBtn.addEventListener("click", savePageNote);
   elements.clipBtn.addEventListener("click", toggleClip);
   elements.screenshotBtn.addEventListener("click", takeScreenshot);
+  for (const pill of elements.statusPills) {
+    pill.addEventListener("click", () => {
+      state.noteStatus = pill.dataset.status || "pendiente";
+      render();
+    });
+  }
   elements.saveSettingsBtn.addEventListener("click", saveSettings);
   elements.testConnectionBtn.addEventListener("click", testConnection);
   elements.folderSelect.addEventListener("change", () => {
@@ -192,22 +203,25 @@ function normalizeToken(value) {
 async function refreshVideo(options = {}) {
   let response;
   try {
-    response = await chrome.runtime.sendMessage({ type: "GET_ACTIVE_YOUTUBE_STATE" });
+    response = await chrome.runtime.sendMessage({ type: "GET_ACTIVE_PAGE_STATE" });
   } catch (error) {
+    state.page = null;
     state.video = null;
-    if (!options.silent) setMessage(error instanceof Error ? error.message : "No pude leer el video.");
+    if (!options.silent) setMessage(error instanceof Error ? error.message : "No pude leer la página.");
     return;
   }
 
   state.tab = response?.tab ?? null;
+  state.page = response?.page ?? null;
 
-  if (!response?.ok || !response.video) {
+  if (!response?.ok) {
+    state.page = null;
     state.video = null;
-    if (!options.silent) setMessage(response?.error || "Abre un video de YouTube.");
+    if (!options.silent) setMessage(response?.error || "Abre una página web.");
     return;
   }
 
-  state.video = response.video;
+  state.video = response.video ?? null;
 }
 
 async function startClip() {
@@ -230,7 +244,7 @@ async function toggleClip() {
 async function takeScreenshot() {
   await refreshVideo({ silent: true });
   if (!state.tab?.windowId) {
-    setMessage("Abre un video de YouTube primero.");
+    setMessage("Abre una página web primero.");
     return;
   }
 
@@ -240,6 +254,48 @@ async function takeScreenshot() {
     render();
   } catch (error) {
     setMessage(error instanceof Error ? error.message : "No pude capturar la imagen.");
+  }
+}
+
+async function savePageNote() {
+  await refreshVideo({ silent: true });
+  if (!state.page || !state.tab) {
+    setMessage("Abre una página web para guardar un apunte.");
+    return;
+  }
+
+  const settings = await getSettings();
+  const selectedFolder = elements.folderSelect.value || "Inbox";
+  if (!settings.obsidianToken) {
+    setMessage("Agrega tu token de Obsidian en Conectar.");
+    openSettings();
+    return;
+  }
+
+  const connected = await testConnection({ silent: true });
+  if (!connected) {
+    setMessage("Obsidian no responde. Abre Conectar y pruébalo.");
+    openSettings();
+    return;
+  }
+
+  setMessage("Guardando apunte...");
+  render(true);
+
+  try {
+    await chrome.storage.sync.set({ selectedFolder });
+    await writePageNoteToObsidian(settings, state.page, state.screenshots, selectedFolder);
+    state.lastCapture = {
+      range: null,
+      summary: `Apunte ${state.noteStatus} guardado desde ${state.page.title}.`,
+      transcriptMarkdown: elements.userNote.value.trim() || "Apunte guardado sin texto adicional."
+    };
+    elements.userNote.value = "";
+    setMessage(`Apunte guardado en ${selectedFolder}.`, "saved");
+  } catch (error) {
+    setMessage(error instanceof Error ? error.message : "No pude guardar el apunte.");
+  } finally {
+    render(false);
   }
 }
 
@@ -282,14 +338,14 @@ async function saveClip() {
   const selectedFolder = elements.folderSelect.value || "Inbox";
   if (!settings.obsidianToken) {
     setMessage("Agrega tu token de Obsidian en Conectar.");
-    elements.settingsPanel.hidden = false;
+    openSettings();
     return;
   }
 
   const connected = await testConnection({ silent: true });
   if (!connected) {
     setMessage("Obsidian no responde. Abre Conectar y pruébalo.");
-    elements.settingsPanel.hidden = false;
+    openSettings();
     return;
   }
 
@@ -368,6 +424,26 @@ async function writeCaptureToObsidian(capture, settings, video, screenshots, sel
   }
 }
 
+async function writePageNoteToObsidian(settings, page, screenshots, selectedFolder) {
+  const destinationFolder = safeFolder(selectedFolder || "Inbox");
+  const attachmentFolder = "Attachments/obsync";
+  const screenshotLinks = [];
+  const noteSlug = slug(page.title);
+
+  for (let index = 0; index < screenshots.length; index += 1) {
+    const screenshot = screenshots[index];
+    const filename = `${noteSlug}-${Date.now()}-${index + 1}.png`;
+    const path = `${attachmentFolder}/${filename}`;
+    await putVaultFile(settings, path, dataUrlToBase64(screenshot.dataUrl), "image/png", "base64");
+    screenshotLinks.push(`![[${path}]]`);
+  }
+
+  const filename = `${noteSlug || "web-note"}-${new Date().toISOString().slice(0, 10)}.md`;
+  const path = `${destinationFolder}/${safeFilename(filename)}`;
+  const markdown = buildPageMarkdown(page, screenshotLinks, destinationFolder);
+  await putVaultFile(settings, path, markdown, "text/markdown", "text");
+}
+
 async function putVaultFile(settings, path, body, contentType, encoding) {
   let response;
   let data;
@@ -393,6 +469,37 @@ async function putVaultFile(settings, path, body, contentType, encoding) {
   if (!response.ok) {
     throw new Error(data?.error || "No pude escribir en Obsidian.");
   }
+}
+
+function buildPageMarkdown(page, screenshotLinks, destinationFolder) {
+  const note = elements.userNote.value.trim();
+  const capturedAt = new Date().toISOString();
+
+  return `---
+source: ${page.url}
+captured_at: ${capturedAt}
+status: ${state.noteStatus}
+folder: ${destinationFolder}
+tags: [web, obsync, ${state.noteStatus}]
+---
+
+# ${page.title}
+
+${note || "Apunte pendiente de completar."}
+
+## Evidencia
+
+${screenshotLinks.length ? screenshotLinks.join("\n") : "Sin capturas."}
+
+## Fuente
+
+${page.url}
+
+## Próximos pasos
+
+- Revisar y conectar con notas relacionadas.
+- Convertir este apunte en una nota atómica si sigue siendo útil.
+`;
 }
 
 function buildMarkdown(note, capture, video, screenshotLinks, destinationFolder) {
@@ -439,16 +546,22 @@ ${capture.transcriptMarkdown || "No transcript lines found for this range."}
 `;
 }
 
+function openSettings() {
+  elements.settingsPanel.hidden = false;
+  elements.settingsToggle.setAttribute("aria-expanded", "true");
+}
+
 function render(disabled = false) {
-  elements.videoTitle.textContent = state.video?.title || "Abre un video de YouTube";
-  elements.range.textContent =
-    state.start === null
-      ? "Sin recorte"
-      : `${formatTime(state.start)} -> ${state.video ? formatTime(state.video.currentTime) : "..."}`;
+  elements.videoTitle.textContent = state.page?.title || state.video?.title || "Abre una página o video";
+  elements.range.textContent = state.start === null ? sourceKindLabel() : `${formatTime(state.start)} -> ${state.video ? formatTime(state.video.currentTime) : "..."}`;
   elements.screenshotCount.textContent = String(state.screenshots.length);
   elements.clipBtn.textContent = state.start === null ? "Iniciar extracto" : "Cerrar y guardar";
+  elements.noteBtn.disabled = disabled || !state.page;
+  elements.screenshotBtn.disabled = disabled || !state.tab;
   elements.clipBtn.disabled = disabled || !state.video;
-  elements.screenshotBtn.disabled = disabled || !state.video;
+  for (const pill of elements.statusPills) {
+    pill.classList.toggle("active", pill.dataset.status === state.noteStatus);
+  }
   elements.screenshotStrip.innerHTML = "";
   for (const screenshot of state.screenshots) {
     const image = document.createElement("img");
@@ -459,14 +572,20 @@ function render(disabled = false) {
 
   if (state.lastCapture) {
     elements.transcriptPreview.hidden = false;
-    elements.transcriptRange.textContent = `${formatTime(state.lastCapture.range.start)} -> ${formatTime(
-      state.lastCapture.range.end
-    )}`;
+    elements.transcriptRange.textContent = state.lastCapture.range
+      ? `${formatTime(state.lastCapture.range.start)} -> ${formatTime(state.lastCapture.range.end)}`
+      : state.noteStatus;
     elements.captureSummary.textContent = state.lastCapture.summary;
     elements.transcriptText.textContent = state.lastCapture.transcriptMarkdown || "Sin líneas de transcripción para este rango.";
   } else {
     elements.transcriptPreview.hidden = true;
   }
+}
+
+function sourceKindLabel() {
+  if (state.video) return "Video listo";
+  if (state.page) return "Apunte web";
+  return "Sin fuente";
 }
 
 function setMessage(message, className = "") {
