@@ -37,8 +37,6 @@ const elements = {
   clipBtn: document.querySelector("#clipBtn"),
   screenshotBtn: document.querySelector("#screenshotBtn"),
   statusPills: Array.from(document.querySelectorAll(".status-pill")),
-  screenshotCount: document.querySelector("#screenshotCount"),
-  screenshotStrip: document.querySelector("#screenshotStrip"),
   cropPanel: document.querySelector("#cropPanel"),
   cropStage: document.querySelector("#cropStage"),
   cropImage: document.querySelector("#cropImage"),
@@ -866,7 +864,6 @@ function render(disabled = false) {
     elements.noteTitle.value = defaultNoteTitle();
   }
   elements.range.textContent = state.start === null ? sourceKindLabel() : `${formatTime(state.start)} -> ${state.video ? formatTime(state.video.currentTime) : "..."}`;
-  elements.screenshotCount.textContent = String(state.screenshots.length);
   elements.clipBtn.textContent = state.start === null ? "Iniciar extracto" : "Cerrar y guardar";
   elements.noteBtn.disabled = disabled || !state.page;
   elements.screenshotBtn.disabled = disabled || !state.tab;
@@ -874,14 +871,6 @@ function render(disabled = false) {
   for (const pill of elements.statusPills) {
     pill.classList.toggle("active", pill.dataset.status === state.noteStatus);
   }
-  elements.screenshotStrip.innerHTML = "";
-  for (const screenshot of state.screenshots) {
-    const image = document.createElement("img");
-    image.src = screenshot.dataUrl;
-    image.alt = `Captura en ${formatTime(screenshot.timestamp)}`;
-    elements.screenshotStrip.append(image);
-  }
-
   if (state.lastCapture?.kind === "video_extract" && state.lastCapture.range) {
     elements.transcriptPreview.hidden = false;
     elements.transcriptRange.textContent = state.lastCapture.range

@@ -30,8 +30,8 @@
 body {
   min-width: 0;
   width: 100%;
-  min-height: 100vh;
-  overflow-x: hidden;
+  height: 100vh;
+  overflow: hidden;
   margin: 0;
   background: var(--bg);
   color: var(--ink);
@@ -42,15 +42,15 @@ body {
 
 .note-shell {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto auto auto auto auto;
-  min-height: 100vh;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto auto auto;
+  height: 100vh;
+  overflow: hidden;
   gap: 10px;
   padding: 12px;
 }
 
 .topbar,
 .source,
-.capture-meta,
 .preview > div:first-child {
   display: flex;
   align-items: center;
@@ -224,7 +224,7 @@ input {
 
 .note-tools {
   display: grid;
-  gap: 8px;
+  gap: 7px;
   border-top: 1px solid var(--line);
   padding-top: 10px;
 }
@@ -241,19 +241,27 @@ input {
 }
 
 .status-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  justify-self: start;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px;
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .status-pill {
-  min-height: 32px;
+  min-height: 24px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 10px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .status-pill.active {
-  border-color: rgba(124, 92, 255, 0.5);
+  border-color: transparent;
   background: var(--accent-soft);
   color: var(--ink);
 }
@@ -277,13 +285,6 @@ button.primary {
 button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
-}
-
-.capture-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
 }
 
 .preview {
@@ -324,34 +325,6 @@ button:disabled {
   font-size: 12px;
   line-height: 1.45;
   white-space: pre-wrap;
-}
-
-.capture-meta span {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 750;
-}
-
-.capture-meta strong {
-  color: var(--accent);
-}
-
-.strip {
-  display: flex;
-  gap: 7px;
-  min-height: 46px;
-  max-width: 100%;
-  overflow-x: auto;
-}
-
-.strip img {
-  flex: 0 0 72px;
-  width: 72px;
-  height: 44px;
-  max-width: 72px;
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  object-fit: cover;
 }
 
 .crop-panel {
