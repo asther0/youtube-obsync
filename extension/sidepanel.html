@@ -9,11 +9,14 @@
   <body>
     <main class="note-shell">
       <header class="topbar">
-        <div>
+        <div class="brand">
           <strong>Obsync</strong>
-          <span id="connection">Falta token</span>
+          <span class="connection-badge" title="Estado de Obsidian">
+            <span id="connectionDot" class="connection-dot error" aria-hidden="true"></span>
+            <span id="connection">Falta token</span>
+          </span>
         </div>
-        <button id="settingsToggle" title="Conexión" aria-expanded="false">Conectar</button>
+        <button id="settingsToggle" title="Configuración" aria-expanded="false">Config</button>
       </header>
 
       <section class="source">
@@ -52,25 +55,27 @@
       </section>
 
       <section id="settingsPanel" class="settings" hidden>
-        <label>
-          Carpeta destino
-          <select id="folderSelect"></select>
-        </label>
-        <div class="connection-tools">
-          <button id="testConnectionBtn">Probar Obsidian</button>
-          <span id="connectionDetail">Sin probar</span>
+        <div class="settings-head">
+          <div>
+            <strong>Obsidian</strong>
+            <span id="connectionDetail">Sin probar</span>
+          </div>
+          <button id="testConnectionBtn">Probar</button>
         </div>
         <label>
-          Token de Obsidian
-          <input id="obsidianToken" type="password" placeholder="Local REST API token" />
+          Carpeta por defecto
+          <select id="folderSelect"></select>
         </label>
-        <label>
-          Carpetas
-          <input id="folders" value="20 inbox, 10 second-brain/ideas, 10 second-brain/patterns, 30 projects, 90 archive" />
-        </label>
-        <button id="saveSettingsBtn">Guardar conexión</button>
         <details class="advanced-settings">
-          <summary>Avanzado</summary>
+          <summary>Conexión y avanzado</summary>
+          <label>
+            Token de Obsidian
+            <input id="obsidianToken" type="password" placeholder="Local REST API token" />
+          </label>
+          <label>
+            Carpetas disponibles
+            <input id="folders" value="20 inbox, 10 second-brain/ideas, 10 second-brain/patterns, 30 projects, 90 archive" />
+          </label>
           <label>
             Backend
             <input id="backendUrl" value="http://localhost:4177" />
@@ -79,6 +84,7 @@
             Obsidian REST URL
             <input id="obsidianUrl" value="https://127.0.0.1:27124" />
           </label>
+          <button id="saveSettingsBtn">Guardar</button>
         </details>
       </section>
 

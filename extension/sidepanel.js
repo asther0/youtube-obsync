@@ -5,7 +5,8 @@ const state = {
   start: null,
   screenshots: [],
   lastCapture: null,
-  noteStatus: "pendiente"
+  noteStatus: "pendiente",
+  connectionStatus: "missing"
 };
 
 const OLD_DEFAULT_FOLDERS = "Inbox, Learning, Ideas, Frameworks, Examples";
@@ -20,6 +21,7 @@ const DEFAULT_SETTINGS = {
 
 const elements = {
   connection: document.querySelector("#connection"),
+  connectionDot: document.querySelector("#connectionDot"),
   videoTitle: document.querySelector("#videoTitle"),
   range: document.querySelector("#range"),
   folderSelect: document.querySelector("#folderSelect"),
@@ -92,7 +94,7 @@ async function loadSettings() {
   elements.obsidianToken.value = settings.obsidianToken;
   elements.folders.value = settings.folders;
   renderFolders(splitList(settings.folders), settings.selectedFolder);
-  elements.connection.textContent = settings.obsidianToken ? "Obsidian listo" : "Falta token";
+  setConnectionState(settings.obsidianToken ? "unknown" : "missing");
 }
 
 async function saveSettings() {
@@ -105,7 +107,7 @@ async function saveSettings() {
   await chrome.storage.local.set({
     obsidianToken: normalizeToken(elements.obsidianToken.value)
   });
-  setMessage("Conexión guardada.");
+  setMessage("Configuración guardada.");
   await loadSettings();
   await testConnection({ silent: true });
 }
@@ -113,10 +115,13 @@ async function saveSettings() {
 async function testConnection(options = {}) {
   const settings = await getSettings();
   if (!settings.obsidianToken) {
-    elements.connection.textContent = "Falta token";
+    setConnectionState("missing");
     elements.connectionDetail.textContent = "Pega el token local";
     return false;
   }
+
+  setConnectionState("testing");
+  elements.connectionDetail.textContent = "Probando conexión...";
 
   const candidates = unique([
     settings.obsidianUrl || "https://127.0.0.1:27124",
@@ -145,7 +150,7 @@ async function testConnection(options = {}) {
       if (response.ok && data.ok) {
         await chrome.storage.sync.set({ obsidianUrl: url });
         elements.obsidianUrl.value = url;
-        elements.connection.textContent = "Obsidian listo";
+        setConnectionState("connected");
         elements.connectionDetail.textContent = `Conectado en ${url}`;
         if (!options.silent) setMessage("Obsidian conectado.", "saved");
         return true;
@@ -154,7 +159,7 @@ async function testConnection(options = {}) {
     }
   }
 
-  elements.connection.textContent = "Sin conexión";
+  setConnectionState("error");
   elements.connectionDetail.textContent = "Revisa plugin, puerto o token";
   if (!options.silent) setMessage("No pude llegar a Obsidian. Déjalo abierto y pega el token sin Bearer.");
   return false;
@@ -301,11 +306,7 @@ async function savePageNote() {
   try {
     await chrome.storage.sync.set({ selectedFolder });
     await writePageNoteToObsidian(settings, state.page, state.screenshots, selectedFolder);
-    state.lastCapture = {
-      range: null,
-      summary: `Apunte ${state.noteStatus} guardado desde ${state.page.title}.`,
-      transcriptMarkdown: elements.userNote.value.trim() || "Apunte guardado sin texto adicional."
-    };
+    state.lastCapture = null;
     elements.userNote.value = "";
     setMessage(`Apunte guardado en ${selectedFolder}.`, "saved");
   } catch (error) {
@@ -377,6 +378,7 @@ async function saveClip() {
     await chrome.storage.sync.set({ selectedFolder });
     await writeCaptureToObsidian(capture, freshSettings, state.video, state.screenshots, selectedFolder);
     state.lastCapture = {
+      kind: "video_extract",
       range: capture.range,
       summary: capture.summary,
       transcriptMarkdown: capture.transcriptMarkdown
@@ -628,7 +630,7 @@ function render(disabled = false) {
     elements.screenshotStrip.append(image);
   }
 
-  if (state.lastCapture) {
+  if (state.lastCapture?.kind === "video_extract" && state.lastCapture.range) {
     elements.transcriptPreview.hidden = false;
     elements.transcriptRange.textContent = state.lastCapture.range
       ? `${formatTime(state.lastCapture.range.start)} -> ${formatTime(state.lastCapture.range.end)}`
@@ -649,6 +651,21 @@ function sourceKindLabel() {
 function setMessage(message, className = "") {
   elements.message.textContent = message;
   elements.message.className = className;
+}
+
+function setConnectionState(status) {
+  state.connectionStatus = status;
+  const labels = {
+    connected: "Conectado",
+    testing: "Probando",
+    unknown: "Sin probar",
+    missing: "Falta token",
+    error: "Sin conexión"
+  };
+
+  elements.connection.textContent = labels[status] || labels.error;
+  elements.connectionDot.className = `connection-dot ${status}`;
+  elements.connectionDot.parentElement?.setAttribute("title", `Obsidian: ${elements.connection.textContent}`);
 }
 
 function splitList(value) {

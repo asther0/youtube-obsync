@@ -23,8 +23,14 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 body {
-  min-width: 360px;
+  min-width: 0;
+  width: 100%;
+  overflow-x: hidden;
   margin: 0;
   background: var(--bg);
   color: var(--ink);
@@ -35,8 +41,8 @@ body {
 
 .note-shell {
   display: grid;
-  gap: 14px;
-  padding: 16px;
+  gap: 12px;
+  padding: 14px;
 }
 
 .topbar,
@@ -47,9 +53,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-}
-
-.topbar div {
+.brand {
   display: grid;
   gap: 2px;
 }
@@ -66,6 +70,38 @@ body {
   color: var(--muted);
   font-size: 12px;
   font-weight: 750;
+}
+
+.connection-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.connection-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #dc6b6b;
+  box-shadow: 0 0 0 3px rgba(220, 107, 107, 0.12);
+}
+
+.connection-dot.testing,
+.connection-dot.unknown {
+  background: #d6b356;
+  box-shadow: 0 0 0 3px rgba(214, 179, 86, 0.14);
+}
+
+.connection-dot.connected {
+  background: #55c58a;
+  box-shadow: 0 0 0 3px rgba(85, 197, 138, 0.14);
+}
+
+.connection-dot.error,
+.connection-dot.missing {
+  background: #dc6b6b;
+  box-shadow: 0 0 0 3px rgba(220, 107, 107, 0.12);
 }
 
 #settingsToggle {
@@ -117,7 +153,7 @@ input {
 }
 
 textarea {
-  min-height: 150px;
+  min-height: 136px;
   resize: vertical;
   padding: 12px;
   font-size: 14px;
@@ -126,8 +162,13 @@ textarea {
 
 .capture-dock {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+}
+
+.capture-dock .primary {
+  grid-column: 1 / -1;
+  order: -1;
 }
 
 .status-row {
@@ -242,14 +283,23 @@ button:disabled {
   padding-top: 12px;
 }
 
-.connection-tools {
+.settings-head {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
 }
 
-.connection-tools span {
+.settings-head > div {
+  display: grid;
+  gap: 2px;
+}
+
+.settings-head strong {
+  font-size: 13px;
+}
+
+.settings-head span {
   min-width: 0;
   overflow: hidden;
   color: var(--muted);
@@ -264,7 +314,18 @@ button:disabled {
   padding-top: 10px;
 }
 
+.advanced-settings summary {
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 850;
+}
+
 .advanced-settings label {
+  margin-top: 10px;
+}
+
+.advanced-settings button {
   margin-top: 10px;
 }
 
@@ -276,4 +337,29 @@ button:disabled {
 
 .saved {
   color: #2f9e6d;
+}
+
+@media (max-width: 340px) {
+  .note-shell {
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .topbar,
+  .source {
+    gap: 8px;
+  }
+
+  textarea {
+    min-height: 120px;
+  }
+
+  .capture-dock,
+  .status-row {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-head {
+    grid-template-columns: 1fr;
+  }
 }
