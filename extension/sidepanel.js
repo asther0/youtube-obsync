@@ -10,7 +10,8 @@ const state = {
   lastCapture: null,
   noteStatus: "pendiente",
   connectionStatus: "missing",
-  titleTouched: false
+  titleTouched: false,
+  lastSourceUrl: ""
 };
 
 const OLD_DEFAULT_FOLDERS = "Inbox, Learning, Ideas, Frameworks, Examples";
@@ -302,7 +303,7 @@ async function takeScreenshot() {
 
     const dataUrl = await captureVisibleDataUrl();
     const cropped = await cropImageDataUrlByViewportRect(dataUrl, region);
-    addScreenshot(cropped, state.video?.currentTime ?? 0);
+    addScreenshot(cropped, state.video?.currentTime ?? 0, { insertIntoNote: true });
     setMessage("Recorte añadido.");
     render();
   } catch (error) {
@@ -345,10 +346,7 @@ async function savePageNote() {
   try {
     await chrome.storage.sync.set({ selectedFolder });
     await writePageNoteToObsidian(settings, state.page, state.screenshots, selectedFolder);
-    state.lastCapture = null;
-    state.titleTouched = false;
-    elements.noteTitle.value = "";
-    elements.userNote.value = "";
+    resetComposerAfterSave();
     setMessage(`Apunte guardado en ${selectedFolder}.`, "saved");
   } catch (error) {
     setMessage(error instanceof Error ? error.message : "No pude guardar el apunte.");
@@ -395,11 +393,14 @@ async function selectScreenRegion() {
   return response.region;
 }
 
-function addScreenshot(dataUrl, timestamp) {
+function addScreenshot(dataUrl, timestamp, options = {}) {
+  const marker = `![[Recorte ${state.screenshots.length + 1}]]`;
   state.screenshots.push({
     dataUrl,
-    timestamp
+    timestamp,
+    marker
   });
+  if (options.insertIntoNote) insertAtCursor(elements.userNote, marker);
 }
 
 function openCropper(dataUrl, timestamp) {
@@ -511,7 +512,7 @@ async function useCrop() {
 
   try {
     const cropped = await cropImageDataUrl(state.cropDraft.dataUrl, rect);
-    addScreenshot(cropped, state.cropDraft.timestamp);
+    addScreenshot(cropped, state.cropDraft.timestamp, { insertIntoNote: true });
     closeCropper();
     setMessage("Recorte añadido.");
     render();
@@ -617,10 +618,7 @@ async function saveClip() {
       summary: capture.summary,
       transcriptMarkdown: capture.transcriptMarkdown
     };
-    state.start = null;
-    state.titleTouched = false;
-    elements.noteTitle.value = "";
-    elements.userNote.value = "";
+    resetComposerAfterSave();
     setMessage(`Extracto guardado en ${selectedFolder}.`, "saved");
   } catch (error) {
     setMessage(error instanceof Error ? error.message : "No pude guardar el recorte.");
@@ -668,7 +666,7 @@ async function writeCaptureToObsidian(capture, settings, video, screenshots, sel
     const filename = `${slug(video.title)}-${Math.round(capture.range.start)}-${index + 1}.png`;
     const path = `${attachmentFolder}/${filename}`;
     await putVaultFile(settings, path, dataUrlToBase64(screenshot.dataUrl), "image/png", "base64");
-    screenshotLinks.push(`![[${path}]]`);
+    screenshotLinks.push({ marker: screenshot.marker, link: `![[${path}]]` });
   }
 
   for (const note of capture.notes) {
@@ -691,7 +689,7 @@ async function writePageNoteToObsidian(settings, page, screenshots, selectedFold
     const filename = `${noteSlug}-${capturedAt.getTime()}-${index + 1}.png`;
     const path = `${attachmentFolder}/${filename}`;
     await putVaultFile(settings, path, dataUrlToBase64(screenshot.dataUrl), "image/png", "base64");
-    screenshotLinks.push(`![[${path}]]`);
+    screenshotLinks.push({ marker: screenshot.marker, link: `![[${path}]]` });
   }
 
   const path = `${destinationFolder}/${datedFilename(noteSlug || "web-note", capturedAt)}`;
@@ -728,7 +726,7 @@ async function putVaultFile(settings, path, body, contentType, encoding) {
 
 function buildPageMarkdown(page, screenshotLinks, destinationFolder, capturedAt) {
   const title = currentNoteTitle(page.title);
-  const description = elements.userNote.value.trim();
+  const description = renderDescription(elements.userNote.value, screenshotLinks);
   const sourceType = sourceTypeForUrl(page.url);
   const review = reviewSchedule(state.noteStatus, capturedAt);
 
@@ -757,10 +755,6 @@ tags: [obsync, capture, ${sourceType}, ${state.noteStatus}]
 
 ${description || "Pendiente de describir."}
 
-## Evidencia
-
-${screenshotLinks.length ? screenshotLinks.join("\n") : "Sin capturas."}
-
 ## Fuente
 
 ${page.url}
@@ -781,7 +775,7 @@ ${page.url}
 
 function buildMarkdown(note, capture, video, screenshotLinks, destinationFolder, capturedAt) {
   const title = currentNoteTitle(note.title);
-  const description = elements.userNote.value.trim();
+  const description = renderDescription(elements.userNote.value, screenshotLinks);
   const tags = note.tags.map((tag) => `#${tag.replace(/^#/, "")}`).join(" ");
   const backlinks = note.backlinks.map((link) => `[[${link}]]`).join(" ");
   const sourceTime = `${video.url}&t=${Math.floor(capture.range.start)}s`;
@@ -825,7 +819,7 @@ ${note.evidence}
 
 ## Capturas
 
-${screenshotLinks.length ? screenshotLinks.join("\n") : "Sin capturas."}
+${unplacedScreenshotLinks(description, screenshotLinks) || "Sin capturas adicionales."}
 
 ## Conexiones
 
@@ -857,6 +851,12 @@ function openSettings() {
 }
 
 function render(disabled = false) {
+  const sourceUrl = state.video?.url || state.page?.url || "";
+  if (sourceUrl && sourceUrl !== state.lastSourceUrl) {
+    state.lastSourceUrl = sourceUrl;
+    state.titleTouched = false;
+  }
+
   elements.videoTitle.textContent = state.page?.title || state.video?.title || "Abre una página o video";
   if (!state.titleTouched) {
     elements.noteTitle.value = defaultNoteTitle();
@@ -890,6 +890,17 @@ function render(disabled = false) {
   }
 }
 
+function resetComposerAfterSave() {
+  state.screenshots = [];
+  state.start = null;
+  state.lastCapture = null;
+  state.noteStatus = "pendiente";
+  state.titleTouched = true;
+  elements.noteTitle.value = "";
+  elements.userNote.value = "";
+  closeCropper();
+}
+
 function sourceKindLabel() {
   if (state.video) return "Video listo";
   if (state.page) return "Apunte web";
@@ -904,6 +915,44 @@ function defaultNoteTitle() {
 
 function currentNoteTitle(fallback) {
   return elements.noteTitle.value.trim() || String(fallback || "Apunte").trim() || "Apunte";
+}
+
+function insertAtCursor(textarea, text) {
+  const start = textarea.selectionStart ?? textarea.value.length;
+  const end = textarea.selectionEnd ?? textarea.value.length;
+  const before = textarea.value.slice(0, start);
+  const after = textarea.value.slice(end);
+  const prefix = before && !before.endsWith("\n") ? "\n\n" : "";
+  const suffix = after && !after.startsWith("\n") ? "\n\n" : "";
+  const insertion = `${prefix}${text}${suffix}`;
+  textarea.value = `${before}${insertion}${after}`;
+  const cursor = before.length + insertion.length;
+  textarea.focus();
+  textarea.setSelectionRange(cursor, cursor);
+}
+
+function renderDescription(value, screenshotLinks) {
+  let markdown = String(value || "").trim();
+  const unused = [];
+
+  for (const screenshot of screenshotLinks) {
+    if (screenshot.marker && markdown.includes(screenshot.marker)) {
+      markdown = markdown.split(screenshot.marker).join(screenshot.link);
+    } else {
+      unused.push(screenshot.link);
+    }
+  }
+
+  if (!markdown) return unused.join("\n\n");
+  if (!unused.length) return markdown;
+  return `${markdown}\n\n${unused.join("\n\n")}`;
+}
+
+function unplacedScreenshotLinks(description, screenshotLinks) {
+  return screenshotLinks
+    .map((screenshot) => screenshot.link)
+    .filter((link) => !description.includes(link))
+    .join("\n");
 }
 
 function prettyTitle(title, url) {
