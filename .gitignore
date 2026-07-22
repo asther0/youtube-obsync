@@ -5,3 +5,8 @@ private-references/
 node_modules/
 out/
 npm-debug.log*
+
+# Punteros locales al vault Obsidian (one-machine symlinks, no portable).
+# No commitear. Si otro dev trabaja en este repo, que corra
+# <vault>/00 meta/bin/init-vault-context.sh <ProjectName> <repo-dir>
+.vault-context/
