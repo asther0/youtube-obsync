@@ -179,28 +179,24 @@ function normalizeToken(value) {
 }
 
 async function refreshVideo(options = {}) {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  state.tab = tab;
-
-  if (!tab?.id || !tab.url?.includes("youtube.com/watch")) {
+  let response;
+  try {
+    response = await chrome.runtime.sendMessage({ type: "GET_ACTIVE_YOUTUBE_STATE" });
+  } catch (error) {
     state.video = null;
-    if (!options.silent) setMessage("Abre un video de YouTube.");
+    if (!options.silent) setMessage(error instanceof Error ? error.message : "No pude leer el video.");
     return;
   }
 
-  const [{ result }] = await chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    func: () => {
-      const video = document.querySelector("video");
-      return {
-        url: location.href,
-        title: document.title.replace(/ - YouTube$/, ""),
-        currentTime: video ? Math.round(video.currentTime) : 0
-      };
-    }
-  });
+  state.tab = response?.tab ?? null;
 
-  state.video = result;
+  if (!response?.ok || !response.video) {
+    state.video = null;
+    if (!options.silent) setMessage(response?.error || "Abre un video de YouTube.");
+    return;
+  }
+
+  state.video = response.video;
 }
 
 async function startClip() {

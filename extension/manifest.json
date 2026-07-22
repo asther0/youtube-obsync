@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "YouTube Obsync",
   "description": "Capture YouTube moments as connected Obsidian notes.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "action": {
     "default_title": "YouTube Obsync"
   },
@@ -12,7 +12,14 @@
   "side_panel": {
     "default_path": "sidepanel.html"
   },
-  "permissions": ["activeTab", "scripting", "tabs", "storage", "sidePanel"],
+  "content_scripts": [
+    {
+      "matches": ["https://www.youtube.com/watch*", "https://youtube.com/watch*"],
+      "js": ["youtube-content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": ["activeTab", "tabs", "storage", "sidePanel"],
   "host_permissions": [
     "<all_urls>",
     "https://www.youtube.com/*",
