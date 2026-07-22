@@ -32,7 +32,7 @@
       </section>
 
       <section class="capture-dock">
-        <button id="screenshotBtn" title="Captura de pantalla">Imagen</button>
+        <button id="screenshotBtn" title="Recortar captura de pantalla">Recorte</button>
         <button id="noteBtn" class="primary">Guardar apunte</button>
         <button id="clipBtn">Iniciar extracto</button>
       </section>
@@ -43,6 +43,21 @@
           <strong id="screenshotCount">0</strong>
         </div>
         <div id="screenshotStrip" class="strip"></div>
+      </section>
+
+      <section id="cropPanel" class="crop-panel" hidden>
+        <div class="crop-head">
+          <strong>Recortar imagen</strong>
+          <button id="cropCancelBtn" title="Cancelar recorte">Cancelar</button>
+        </div>
+        <div id="cropStage" class="crop-stage">
+          <img id="cropImage" alt="Captura para recortar" />
+          <div id="cropSelection" class="crop-selection" hidden></div>
+        </div>
+        <div class="crop-actions">
+          <span id="cropHint">Arrastra sobre la imagen.</span>
+          <button id="cropUseBtn" class="primary" disabled>Usar recorte</button>
+        </div>
       </section>
 
       <section id="transcriptPreview" class="preview" hidden>

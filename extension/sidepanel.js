@@ -4,6 +4,9 @@ const state = {
   video: null,
   start: null,
   screenshots: [],
+  cropDraft: null,
+  cropRect: null,
+  cropDrag: null,
   lastCapture: null,
   noteStatus: "pendiente",
   connectionStatus: "missing"
@@ -32,6 +35,13 @@ const elements = {
   statusPills: Array.from(document.querySelectorAll(".status-pill")),
   screenshotCount: document.querySelector("#screenshotCount"),
   screenshotStrip: document.querySelector("#screenshotStrip"),
+  cropPanel: document.querySelector("#cropPanel"),
+  cropStage: document.querySelector("#cropStage"),
+  cropImage: document.querySelector("#cropImage"),
+  cropSelection: document.querySelector("#cropSelection"),
+  cropUseBtn: document.querySelector("#cropUseBtn"),
+  cropCancelBtn: document.querySelector("#cropCancelBtn"),
+  cropHint: document.querySelector("#cropHint"),
   transcriptPreview: document.querySelector("#transcriptPreview"),
   transcriptRange: document.querySelector("#transcriptRange"),
   captureSummary: document.querySelector("#captureSummary"),
@@ -61,6 +71,12 @@ async function init() {
   elements.noteBtn.addEventListener("click", savePageNote);
   elements.clipBtn.addEventListener("click", toggleClip);
   elements.screenshotBtn.addEventListener("click", takeScreenshot);
+  elements.cropCancelBtn.addEventListener("click", closeCropper);
+  elements.cropUseBtn.addEventListener("click", useCrop);
+  elements.cropStage.addEventListener("pointerdown", startCropDrag);
+  window.addEventListener("pointermove", moveCropDrag);
+  window.addEventListener("pointerup", endCropDrag);
+  elements.cropImage.addEventListener("load", seedDefaultCrop);
   for (const pill of elements.statusPills) {
     pill.addEventListener("click", () => {
       state.noteStatus = pill.dataset.status || "pendiente";
@@ -270,8 +286,9 @@ async function takeScreenshot() {
   }
 
   try {
-    await appendScreenshot();
-    setMessage("Imagen añadida.");
+    const dataUrl = await captureVisibleDataUrl();
+    openCropper(dataUrl, state.video?.currentTime ?? 0);
+    setMessage("Selecciona el área que quieres guardar.");
     render();
   } catch (error) {
     setMessage(error instanceof Error ? error.message : "No pude capturar la imagen.");
@@ -328,6 +345,11 @@ async function appendFinalScreenshot(end) {
 }
 
 async function appendScreenshot(timestampOverride) {
+  const dataUrl = await captureVisibleDataUrl();
+  addScreenshot(dataUrl, timestampOverride ?? state.video?.currentTime ?? 0);
+}
+
+async function captureVisibleDataUrl() {
   if (!state.tab?.windowId) throw new Error("No hay pestaña activa para capturar.");
 
   const response = await chrome.runtime.sendMessage({
@@ -338,9 +360,165 @@ async function appendScreenshot(timestampOverride) {
     throw new Error(response?.error || "No pude capturar la pestaña visible.");
   }
 
+  return response.dataUrl;
+}
+
+function addScreenshot(dataUrl, timestamp) {
   state.screenshots.push({
-    dataUrl: response.dataUrl,
-    timestamp: timestampOverride ?? state.video?.currentTime ?? 0
+    dataUrl,
+    timestamp
+  });
+}
+
+function openCropper(dataUrl, timestamp) {
+  state.cropDraft = { dataUrl, timestamp };
+  state.cropRect = null;
+  state.cropDrag = null;
+  elements.cropImage.src = dataUrl;
+  elements.cropPanel.hidden = false;
+  elements.cropUseBtn.disabled = true;
+  elements.cropSelection.hidden = true;
+  elements.cropHint.textContent = "Arrastra sobre la imagen.";
+}
+
+function closeCropper() {
+  state.cropDraft = null;
+  state.cropRect = null;
+  state.cropDrag = null;
+  elements.cropImage.removeAttribute("src");
+  elements.cropPanel.hidden = true;
+  elements.cropSelection.hidden = true;
+  elements.cropUseBtn.disabled = true;
+}
+
+function seedDefaultCrop() {
+  if (!state.cropDraft) return;
+  const imageBox = elements.cropImage.getBoundingClientRect();
+  if (!imageBox.width || !imageBox.height) return;
+  const width = imageBox.width * 0.72;
+  const height = imageBox.height * 0.58;
+  state.cropRect = {
+    x: (imageBox.width - width) / 2,
+    y: (imageBox.height - height) / 2,
+    width,
+    height
+  };
+  drawCropSelection();
+}
+
+function startCropDrag(event) {
+  if (!state.cropDraft) return;
+  event.preventDefault();
+  const point = cropPoint(event);
+  state.cropDrag = { startX: point.x, startY: point.y };
+  state.cropRect = { x: point.x, y: point.y, width: 0, height: 0 };
+  drawCropSelection();
+}
+
+function moveCropDrag(event) {
+  if (!state.cropDrag) return;
+  const point = cropPoint(event);
+  const x = Math.min(state.cropDrag.startX, point.x);
+  const y = Math.min(state.cropDrag.startY, point.y);
+  state.cropRect = {
+    x,
+    y,
+    width: Math.abs(point.x - state.cropDrag.startX),
+    height: Math.abs(point.y - state.cropDrag.startY)
+  };
+  drawCropSelection();
+}
+
+function endCropDrag() {
+  if (!state.cropDrag) return;
+  state.cropDrag = null;
+  drawCropSelection();
+}
+
+function cropPoint(event) {
+  const imageBox = elements.cropImage.getBoundingClientRect();
+  return {
+    x: clamp(event.clientX - imageBox.left, 0, imageBox.width),
+    y: clamp(event.clientY - imageBox.top, 0, imageBox.height)
+  };
+}
+
+function drawCropSelection() {
+  const rect = normalizedCropRect();
+  if (!rect) {
+    elements.cropSelection.hidden = true;
+    elements.cropUseBtn.disabled = true;
+    return;
+  }
+
+  elements.cropSelection.hidden = false;
+  elements.cropSelection.style.left = `${rect.x}px`;
+  elements.cropSelection.style.top = `${rect.y}px`;
+  elements.cropSelection.style.width = `${rect.width}px`;
+  elements.cropSelection.style.height = `${rect.height}px`;
+  elements.cropUseBtn.disabled = false;
+  elements.cropHint.textContent = `${Math.round(rect.width)} x ${Math.round(rect.height)}`;
+}
+
+function normalizedCropRect() {
+  if (!state.cropRect) return null;
+  const width = Math.abs(state.cropRect.width);
+  const height = Math.abs(state.cropRect.height);
+  if (width < 12 || height < 12) return null;
+  return {
+    x: state.cropRect.x,
+    y: state.cropRect.y,
+    width,
+    height
+  };
+}
+
+async function useCrop() {
+  const rect = normalizedCropRect();
+  if (!state.cropDraft || !rect) return;
+
+  try {
+    const cropped = await cropImageDataUrl(state.cropDraft.dataUrl, rect);
+    addScreenshot(cropped, state.cropDraft.timestamp);
+    closeCropper();
+    setMessage("Recorte añadido.");
+    render();
+  } catch (error) {
+    setMessage(error instanceof Error ? error.message : "No pude recortar la imagen.");
+  }
+}
+
+async function cropImageDataUrl(dataUrl, displayRect) {
+  const image = await loadImage(dataUrl);
+  const imageBox = elements.cropImage.getBoundingClientRect();
+  const scaleX = image.naturalWidth / imageBox.width;
+  const scaleY = image.naturalHeight / imageBox.height;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(displayRect.width * scaleX));
+  canvas.height = Math.max(1, Math.round(displayRect.height * scaleY));
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("No pude preparar el recorte.");
+
+  context.drawImage(
+    image,
+    Math.round(displayRect.x * scaleX),
+    Math.round(displayRect.y * scaleY),
+    canvas.width,
+    canvas.height,
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+  return canvas.toDataURL("image/png");
+}
+
+function loadImage(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("La captura no se pudo cargar."));
+    image.src = dataUrl;
   });
 }
 
@@ -677,6 +855,10 @@ function splitList(value) {
 
 function unique(items) {
   return Array.from(new Set(items.filter(Boolean)));
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function dataUrlToBase64(dataUrl) {
