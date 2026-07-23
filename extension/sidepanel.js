@@ -11,6 +11,8 @@ const state = {
   noteStatus: "pendiente",
   connectionStatus: "missing",
   settingsOpen: false,
+  voiceListening: false,
+  voiceRecognition: null,
   titleTouched: false,
   lastSourceUrl: "",
   lastEditorRange: null
@@ -36,6 +38,7 @@ const elements = {
   userNote: document.querySelector("#userNote"),
   noteBtn: document.querySelector("#noteBtn"),
   clipBtn: document.querySelector("#clipBtn"),
+  voiceBtn: document.querySelector("#voiceBtn"),
   screenshotBtn: document.querySelector("#screenshotBtn"),
   statusPills: Array.from(document.querySelectorAll(".status-pill")),
   cropPanel: document.querySelector("#cropPanel"),
@@ -73,6 +76,7 @@ async function init() {
 
   elements.noteBtn.addEventListener("click", savePageNote);
   elements.clipBtn.addEventListener("click", toggleClip);
+  elements.voiceBtn.addEventListener("click", toggleVoiceNote);
   elements.screenshotBtn.addEventListener("click", takeScreenshot);
   elements.cropCancelBtn.addEventListener("click", closeCropper);
   elements.cropUseBtn.addEventListener("click", useCrop);
@@ -99,6 +103,10 @@ async function init() {
   });
   const settings = await getSettings();
   if (settings.obsidianToken) testConnection({ silent: true });
+  if (!speechRecognitionConstructor()) {
+    elements.voiceBtn.disabled = true;
+    elements.voiceBtn.title = "Dictado no disponible en este navegador";
+  }
 
   window.setInterval(async () => {
     try {
@@ -268,6 +276,92 @@ async function toggleClip() {
     return;
   }
   await saveClip();
+}
+
+function toggleVoiceNote() {
+  if (state.voiceListening) {
+    stopVoiceNote();
+    return;
+  }
+  startVoiceNote();
+}
+
+function startVoiceNote() {
+  const Recognition = speechRecognitionConstructor();
+  if (!Recognition) {
+    setMessage("Dictado no disponible en este navegador.");
+    return;
+  }
+
+  stopVoiceNote({ silent: true });
+
+  const recognition = new Recognition();
+  recognition.lang = "es-419";
+  recognition.continuous = true;
+  recognition.interimResults = false;
+
+  recognition.onresult = (event) => {
+    const text = Array.from(event.results)
+      .slice(event.resultIndex)
+      .map((result) => result[0]?.transcript || "")
+      .join(" ")
+      .trim();
+    if (!text) return;
+    insertTextAtCursor(`${text} `);
+    saveEditorSelection();
+    setMessage("Voz añadida.");
+  };
+
+  recognition.onerror = (event) => {
+    state.voiceListening = false;
+    elements.voiceBtn.classList.remove("listening");
+    elements.voiceBtn.textContent = "Voz";
+    setMessage(event.error === "not-allowed" ? "Permite el micrófono para dictar." : "No pude escuchar la voz.");
+  };
+
+  recognition.onend = () => {
+    if (!state.voiceListening) {
+      elements.voiceBtn.classList.remove("listening");
+      elements.voiceBtn.textContent = "Voz";
+      return;
+    }
+    try {
+      recognition.start();
+    } catch {
+      state.voiceListening = false;
+      elements.voiceBtn.classList.remove("listening");
+      elements.voiceBtn.textContent = "Voz";
+    }
+  };
+
+  state.voiceRecognition = recognition;
+  state.voiceListening = true;
+  elements.voiceBtn.classList.add("listening");
+  elements.voiceBtn.textContent = "Oyendo";
+  setMessage("Dictando...");
+
+  try {
+    recognition.start();
+  } catch {
+    state.voiceListening = false;
+    elements.voiceBtn.classList.remove("listening");
+    elements.voiceBtn.textContent = "Voz";
+    setMessage("No pude iniciar el dictado.");
+  }
+}
+
+function stopVoiceNote(options = {}) {
+  state.voiceListening = false;
+  elements.voiceBtn.classList.remove("listening");
+  elements.voiceBtn.textContent = "Voz";
+  if (state.voiceRecognition) {
+    try {
+      state.voiceRecognition.stop();
+    } catch {
+    }
+    state.voiceRecognition = null;
+  }
+  if (!options.silent) setMessage("Dictado detenido.");
 }
 
 async function takeScreenshot() {
@@ -865,6 +959,7 @@ function render(disabled = false) {
   elements.range.textContent = state.start === null ? sourceKindLabel() : `${formatTime(state.start)} -> ${state.video ? formatTime(state.video.currentTime) : "..."}`;
   elements.clipBtn.textContent = state.start === null ? "Iniciar extracto" : "Cerrar y guardar";
   elements.noteBtn.disabled = disabled || !state.page;
+  elements.voiceBtn.disabled = disabled || !speechRecognitionConstructor();
   elements.screenshotBtn.disabled = disabled || !state.tab;
   elements.clipBtn.disabled = disabled || !state.video;
   for (const pill of elements.statusPills) {
@@ -885,6 +980,7 @@ function render(disabled = false) {
 }
 
 function resetComposerAfterSave() {
+  stopVoiceNote({ silent: true });
   state.screenshots = [];
   state.start = null;
   state.lastCapture = null;
@@ -910,6 +1006,33 @@ function defaultNoteTitle() {
 
 function currentNoteTitle(fallback) {
   return elements.noteTitle.value.trim() || String(fallback || "Apunte").trim() || "Apunte";
+}
+
+function insertTextAtCursor(text) {
+  elements.userNote.focus();
+  const selection = window.getSelection();
+  const liveRange = selection?.rangeCount ? selection.getRangeAt(0) : null;
+  const savedRange = state.lastEditorRange?.cloneRange();
+  const range =
+    liveRange && elements.userNote.contains(liveRange.commonAncestorContainer)
+      ? liveRange
+      : savedRange && elements.userNote.contains(savedRange.commonAncestorContainer)
+        ? savedRange
+        : null;
+
+  const prefix = elements.userNote.textContent?.trim() ? " " : "";
+  const node = document.createTextNode(`${prefix}${text}`);
+
+  if (range) {
+    range.deleteContents();
+    range.insertNode(node);
+    range.setStartAfter(node);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  } else {
+    elements.userNote.append(node);
+  }
 }
 
 function insertAtCursor(editor, marker) {
@@ -1078,6 +1201,10 @@ function setConnectionState(status) {
   elements.connection.textContent = labels[status] || labels.error;
   elements.connectionDot.className = `connection-dot ${status}`;
   elements.connectionDot.parentElement?.setAttribute("title", `Obsidian: ${elements.connection.textContent}`);
+}
+
+function speechRecognitionConstructor() {
+  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
 }
 
 function unique(items) {

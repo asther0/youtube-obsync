@@ -67,11 +67,12 @@ bun run dev -- -p 4177
 9. Usa:
    - **Pendiente / Revisado** para marcar el estado del apunte.
    - **Imagen** para capturar evidencia visual de cualquier página.
+   - **Voz** para dictar texto directo dentro del apunte cuando Chrome soporte reconocimiento de voz.
    - **Guardar apunte** para guardar URL, nota, estado e imágenes en Obsidian.
    - **Iniciar extracto** en YouTube para marcar desde dónde quieres guardar transcripción.
    - **Cerrar y guardar** para cerrar el rango, traer la transcripción, interpretarla con OpenAI y guardar el extracto en Obsidian.
 
-La extensión usa `chrome.tabs.captureVisibleTab`, por lo que captura lo visible de la pestaña como evidencia visual. Las imágenes se guardan junto al inbox de Obsync y se embeben en el Markdown.
+La extensión usa `chrome.tabs.captureVisibleTab`, por lo que captura lo visible de la pestaña como evidencia visual. Las imágenes se guardan junto al inbox de Obsync y se embeben en el Markdown. Backtick fue usado como referencia de producto para exportar imágenes pulidas desde UI propia, pero Obsync mantiene el recorte de pestaña porque necesita capturar páginas reales, videos y documentos abiertos en Chrome.
 
 El backend local sigue siendo necesario para traer transcript con SearchAPI, generar notas atómicas con OpenAI y escribir en Obsidian sin depender del certificado local de Chrome. El plugin suele responder en `https://127.0.0.1:27124`; el sidebar lo detecta automáticamente desde **Probar**.
 

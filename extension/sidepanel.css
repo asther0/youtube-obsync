@@ -275,7 +275,7 @@ input {
 
 .capture-dock {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   gap: 8px;
 }
 
@@ -324,6 +324,12 @@ button.primary {
   border-color: transparent;
   background: var(--accent);
   color: white;
+}
+
+button.listening {
+  border-color: rgba(85, 197, 138, 0.35);
+  background: rgba(85, 197, 138, 0.14);
+  color: var(--ink);
 }
 
 button:disabled {
