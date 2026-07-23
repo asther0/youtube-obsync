@@ -77,7 +77,6 @@
         <div class="settings-head">
           <div>
             <strong>Obsidian</strong>
-            <span id="connectionDetail">Sin probar</span>
           </div>
           <button id="testConnectionBtn">Probar</button>
         </div>
@@ -87,6 +86,10 @@
         </div>
         <details class="advanced-settings">
           <summary>Conexión y avanzado</summary>
+          <div class="connection-detail-row">
+            <span>Estado técnico</span>
+            <strong id="connectionDetail">Sin probar</strong>
+          </div>
           <label>
             Token de Obsidian
             <input id="obsidianToken" type="password" placeholder="Local REST API token" />
