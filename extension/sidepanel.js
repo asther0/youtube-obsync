@@ -268,6 +268,14 @@ async function startClip() {
   state.start = state.video.currentTime;
   setMessage(`Extracto iniciado en ${formatTime(state.start)}.`);
   render();
+
+  try {
+    await appendScreenshot(state.start, { label: "Inicio" });
+    setMessage(`Extracto iniciado en ${formatTime(state.start)}. Frame inicial capturado.`);
+    render();
+  } catch {
+    setMessage(`Extracto iniciado en ${formatTime(state.start)}.`);
+  }
 }
 
 async function toggleClip() {
@@ -381,7 +389,7 @@ async function takeScreenshot() {
 
     const dataUrl = await captureVisibleDataUrl();
     const cropped = await cropImageDataUrlByViewportRect(dataUrl, region);
-    addScreenshot(cropped, state.video?.currentTime ?? 0, { insertIntoNote: true });
+    addScreenshot(cropped, state.video?.currentTime ?? 0, { insertIntoNote: true, label: "Recorte" });
     setMessage("Recorte añadido.");
     render();
   } catch (error) {
@@ -438,15 +446,15 @@ async function appendFinalScreenshot(end) {
   if (alreadyCapturedFinalFrame) return;
 
   try {
-    await appendScreenshot(end);
+    await appendScreenshot(end, { label: "Final" });
   } catch {
     // The note should still be saved when Chrome blocks visible-tab capture.
   }
 }
 
-async function appendScreenshot(timestampOverride) {
+async function appendScreenshot(timestampOverride, options = {}) {
   const dataUrl = await captureVisibleDataUrl();
-  addScreenshot(dataUrl, timestampOverride ?? state.video?.currentTime ?? 0);
+  addScreenshot(dataUrl, timestampOverride ?? state.video?.currentTime ?? 0, options);
 }
 
 async function captureVisibleDataUrl() {
@@ -472,11 +480,14 @@ async function selectScreenRegion() {
 }
 
 function addScreenshot(dataUrl, timestamp, options = {}) {
-  const marker = `![[Recorte ${state.screenshots.length + 1}]]`;
+  const label = options.label || "Recorte";
+  const timeSuffix = timestamp ? ` ${formatTime(timestamp)}` : "";
+  const marker = `![[${label} ${state.screenshots.length + 1}${timeSuffix}]]`;
   state.screenshots.push({
     dataUrl,
     timestamp,
-    marker
+    marker,
+    label
   });
   if (options.insertIntoNote) insertAtCursor(elements.userNote, marker);
 }
@@ -590,7 +601,7 @@ async function useCrop() {
 
   try {
     const cropped = await cropImageDataUrl(state.cropDraft.dataUrl, rect);
-    addScreenshot(cropped, state.cropDraft.timestamp, { insertIntoNote: true });
+    addScreenshot(cropped, state.cropDraft.timestamp, { insertIntoNote: true, label: "Recorte" });
     closeCropper();
     setMessage("Recorte añadido.");
     render();
@@ -741,7 +752,7 @@ async function writeCaptureToObsidian(capture, settings, video, screenshots) {
 
   for (let index = 0; index < screenshots.length; index += 1) {
     const screenshot = screenshots[index];
-    const filename = `${slug(video.title)}-${Math.round(capture.range.start)}-${index + 1}.png`;
+    const filename = `${slug(video.title)}-${slug(screenshot.label || "captura")}-${Math.round(screenshot.timestamp)}-${index + 1}.png`;
     const path = `${attachmentFolder}/${filename}`;
     await putVaultFile(settings, path, dataUrlToBase64(screenshot.dataUrl), "image/png", "base64");
     screenshotLinks.push({ marker: screenshot.marker, link: `![[${path}]]` });
@@ -764,7 +775,7 @@ async function writePageNoteToObsidian(settings, page, screenshots) {
 
   for (let index = 0; index < screenshots.length; index += 1) {
     const screenshot = screenshots[index];
-    const filename = `${noteSlug}-${capturedAt.getTime()}-${index + 1}.png`;
+    const filename = `${noteSlug}-${slug(screenshot.label || "captura")}-${capturedAt.getTime()}-${index + 1}.png`;
     const path = `${attachmentFolder}/${filename}`;
     await putVaultFile(settings, path, dataUrlToBase64(screenshot.dataUrl), "image/png", "base64");
     screenshotLinks.push({ marker: screenshot.marker, link: `![[${path}]]` });
