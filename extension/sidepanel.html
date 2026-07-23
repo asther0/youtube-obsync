@@ -16,15 +16,20 @@
             <span id="connection">Falta token</span>
           </span>
         </div>
-        <button id="settingsToggle" title="Configuración" aria-expanded="false">Config</button>
+        <button id="settingsToggle" class="icon-button" title="Configuración" aria-label="Configuración" aria-expanded="false">
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M12 8.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7Z" />
+            <path d="M19.4 15a8.3 8.3 0 0 0 .1-1.2 8.3 8.3 0 0 0-.1-1.2l2-1.5-2-3.5-2.4 1a8.4 8.4 0 0 0-2-1.2L14.7 5h-5.4L9 7.4a8.4 8.4 0 0 0-2 1.2l-2.4-1-2 3.5 2 1.5a8.3 8.3 0 0 0-.1 1.2 8.3 8.3 0 0 0 .1 1.2l-2 1.5 2 3.5 2.4-1a8.4 8.4 0 0 0 2 1.2l.3 2.4h5.4l.3-2.4a8.4 8.4 0 0 0 2-1.2l2.4 1 2-3.5-2-1.5Z" />
+          </svg>
+        </button>
       </header>
 
-      <section class="source">
+      <section class="source" data-note-view>
         <span id="videoTitle">Abre una página o video</span>
         <strong id="range">Sin recorte</strong>
       </section>
 
-      <section class="note-page">
+      <section class="note-page" data-note-view>
         <input id="noteTitle" class="note-title" placeholder="Título" />
         <div
           id="userNote"
@@ -36,7 +41,7 @@
         ></div>
       </section>
 
-      <section class="note-tools">
+      <section class="note-tools" data-note-view>
         <section class="capture-dock">
           <button id="screenshotBtn" title="Recortar captura de pantalla">Recorte</button>
           <button id="noteBtn" class="primary">Guardar</button>
@@ -49,7 +54,7 @@
         </section>
       </section>
 
-      <section id="cropPanel" class="crop-panel" hidden>
+      <section id="cropPanel" class="crop-panel" data-note-view="conditional" hidden>
         <div class="crop-head">
           <strong>Recortar imagen</strong>
           <button id="cropCancelBtn" title="Cancelar recorte">Cancelar</button>
@@ -64,7 +69,7 @@
         </div>
       </section>
 
-      <section id="transcriptPreview" class="preview" hidden>
+      <section id="transcriptPreview" class="preview" data-note-view="conditional" hidden>
         <div>
           <span>Último extracto</span>
           <strong id="transcriptRange"></strong>

@@ -10,6 +10,7 @@ const state = {
   lastCapture: null,
   noteStatus: "pendiente",
   connectionStatus: "missing",
+  settingsOpen: false,
   titleTouched: false,
   lastSourceUrl: "",
   lastEditorRange: null
@@ -26,6 +27,7 @@ const DEFAULT_SETTINGS = {
 const OBSYNC_INBOX_FOLDER = "20 inbox";
 
 const elements = {
+  shell: document.querySelector(".note-shell"),
   connection: document.querySelector("#connection"),
   connectionDot: document.querySelector("#connectionDot"),
   videoTitle: document.querySelector("#videoTitle"),
@@ -49,6 +51,7 @@ const elements = {
   transcriptText: document.querySelector("#transcriptText"),
   settingsToggle: document.querySelector("#settingsToggle"),
   settingsPanel: document.querySelector("#settingsPanel"),
+  notePanels: Array.from(document.querySelectorAll("[data-note-view]")),
   testConnectionBtn: document.querySelector("#testConnectionBtn"),
   connectionDetail: document.querySelector("#connectionDetail"),
   backendUrl: document.querySelector("#backendUrl"),
@@ -92,8 +95,7 @@ async function init() {
   elements.saveSettingsBtn.addEventListener("click", saveSettings);
   elements.testConnectionBtn.addEventListener("click", testConnection);
   elements.settingsToggle.addEventListener("click", () => {
-    elements.settingsPanel.hidden = !elements.settingsPanel.hidden;
-    elements.settingsToggle.setAttribute("aria-expanded", String(!elements.settingsPanel.hidden));
+    setSettingsView(!state.settingsOpen);
   });
   const settings = await getSettings();
   if (settings.obsidianToken) testConnection({ silent: true });
@@ -828,8 +830,25 @@ ${capture.transcriptMarkdown || "Sin líneas de transcripción para este rango."
 }
 
 function openSettings() {
-  elements.settingsPanel.hidden = false;
-  elements.settingsToggle.setAttribute("aria-expanded", "true");
+  setSettingsView(true);
+}
+
+function setSettingsView(open) {
+  state.settingsOpen = open;
+  elements.shell.classList.toggle("settings-open", open);
+  elements.settingsPanel.hidden = !open;
+  elements.settingsToggle.classList.toggle("active", open);
+  elements.settingsToggle.setAttribute("aria-expanded", String(open));
+  elements.settingsToggle.setAttribute("title", open ? "Volver al apunte" : "Configuración");
+  elements.settingsToggle.setAttribute("aria-label", open ? "Volver al apunte" : "Configuración");
+  for (const panel of elements.notePanels) {
+    if (open) {
+      panel.hidden = true;
+    } else if (panel.dataset.noteView !== "conditional") {
+      panel.hidden = false;
+    }
+  }
+  render();
 }
 
 function render(disabled = false) {
@@ -851,6 +870,8 @@ function render(disabled = false) {
   for (const pill of elements.statusPills) {
     pill.classList.toggle("active", pill.dataset.status === state.noteStatus);
   }
+  if (state.settingsOpen) return;
+
   if (state.lastCapture?.kind === "video_extract" && state.lastCapture.range) {
     elements.transcriptPreview.hidden = false;
     elements.transcriptRange.textContent = state.lastCapture.range

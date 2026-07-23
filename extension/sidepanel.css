@@ -49,6 +49,10 @@ body {
   padding: 12px;
 }
 
+.note-shell.settings-open {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
 .topbar,
 .source,
 .preview > div:first-child {
@@ -109,12 +113,29 @@ body {
   box-shadow: 0 0 0 3px rgba(220, 107, 107, 0.12);
 }
 
-#settingsToggle {
-  width: auto;
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
   min-height: 30px;
-  padding: 0 10px;
+  padding: 0;
   color: var(--muted);
-  font-size: 12px;
+}
+
+.icon-button svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.icon-button.active {
+  border-color: rgba(124, 92, 255, 0.35);
+  background: var(--accent-soft);
+  color: var(--ink);
 }
 
 .source {
@@ -420,8 +441,13 @@ button:disabled {
 .settings {
   display: grid;
   gap: 10px;
-  border-top: 1px solid var(--line);
-  padding-top: 12px;
+  align-self: stretch;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--surface);
 }
 
 .settings-head {
