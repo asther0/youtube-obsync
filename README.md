@@ -63,27 +63,32 @@ bun run dev -- -p 4177
 5. Haz click en **Load unpacked** y selecciona la carpeta `extension/`.
 6. Abre un video de YouTube.
 7. Abre la extensión desde un video de YouTube. Se abrirá como side panel.
-8. Haz click en **Conectar**, pega el token sin la palabra `Bearer` y prueba la conexión con **Probar Obsidian**.
-9. Elige la carpeta destino en **Carpeta**.
-10. Usa:
+8. Haz click en **Config**, pega el token sin la palabra `Bearer` y prueba la conexión con **Probar**.
+9. Usa:
    - **Pendiente / Revisado** para marcar el estado del apunte.
    - **Imagen** para capturar evidencia visual de cualquier página.
    - **Guardar apunte** para guardar URL, nota, estado e imágenes en Obsidian.
    - **Iniciar extracto** en YouTube para marcar desde dónde quieres guardar transcripción.
    - **Cerrar y guardar** para cerrar el rango, traer la transcripción, interpretarla con OpenAI y guardar el extracto en Obsidian.
 
-La extensión usa `chrome.tabs.captureVisibleTab`, por lo que captura lo visible de la pestaña como evidencia visual. Las imágenes se guardan en `Attachments/youtube-obsync/` y se embeben en el Markdown.
+La extensión usa `chrome.tabs.captureVisibleTab`, por lo que captura lo visible de la pestaña como evidencia visual. Las imágenes se guardan junto al inbox de Obsync y se embeben en el Markdown.
 
-El backend local sigue siendo necesario para traer transcript con SearchAPI, generar notas atómicas con OpenAI y escribir en Obsidian sin depender del certificado local de Chrome. El plugin suele responder en `https://127.0.0.1:27124`; el sidebar lo detecta automáticamente desde **Probar Obsidian**.
+El backend local sigue siendo necesario para traer transcript con SearchAPI, generar notas atómicas con OpenAI y escribir en Obsidian sin depender del certificado local de Chrome. El plugin suele responder en `https://127.0.0.1:27124`; el sidebar lo detecta automáticamente desde **Probar**.
 
-La configuración vive en **Conectar**: token de Obsidian, carpeta destino, carpetas canónicas y endpoints avanzados. La vista principal queda enfocada en capturar imagen, escribir una nota breve y guardar un extracto verificable del video.
+La configuración vive en **Config**: token de Obsidian y endpoints avanzados. El destino del vault es fijo para mantener el flujo limpio: todo entra por `20 inbox/obsync/` y luego se revisa o promueve manualmente dentro de Obsidian.
 
 ## Organización En Obsidian
 
-Obsync guarda los apuntes en una ruta mensual bajo la carpeta elegida:
+Obsync guarda todos los apuntes en una ruta mensual fija dentro del vault:
 
 ```text
 20 inbox/obsync/YYYY-MM/YYYY-MM-DD-titulo.md
+```
+
+Las capturas de pantalla se guardan dentro de la misma rama:
+
+```text
+20 inbox/obsync/_attachments/YYYY-MM/archivo.png
 ```
 
 Cada nota incluye frontmatter para poder armar recordatorios, Dataview queries

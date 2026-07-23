@@ -15,15 +15,15 @@ const state = {
   lastEditorRange: null
 };
 
-const OLD_DEFAULT_FOLDERS = "Inbox, Learning, Ideas, Frameworks, Examples";
-
 const DEFAULT_SETTINGS = {
   backendUrl: "http://localhost:4177",
   obsidianUrl: "https://127.0.0.1:27124",
   obsidianToken: "",
-  folders: "20 inbox, 10 second-brain/ideas, 10 second-brain/patterns, 30 projects, 90 archive",
+  folders: "20 inbox",
   selectedFolder: "20 inbox"
 };
+
+const OBSYNC_INBOX_FOLDER = "20 inbox";
 
 const elements = {
   connection: document.querySelector("#connection"),
@@ -31,7 +31,6 @@ const elements = {
   videoTitle: document.querySelector("#videoTitle"),
   range: document.querySelector("#range"),
   noteTitle: document.querySelector("#noteTitle"),
-  folderSelect: document.querySelector("#folderSelect"),
   userNote: document.querySelector("#userNote"),
   noteBtn: document.querySelector("#noteBtn"),
   clipBtn: document.querySelector("#clipBtn"),
@@ -55,7 +54,6 @@ const elements = {
   backendUrl: document.querySelector("#backendUrl"),
   obsidianUrl: document.querySelector("#obsidianUrl"),
   obsidianToken: document.querySelector("#obsidianToken"),
-  folders: document.querySelector("#folders"),
   saveSettingsBtn: document.querySelector("#saveSettingsBtn"),
   message: document.querySelector("#message")
 };
@@ -93,9 +91,6 @@ async function init() {
   }
   elements.saveSettingsBtn.addEventListener("click", saveSettings);
   elements.testConnectionBtn.addEventListener("click", testConnection);
-  elements.folderSelect.addEventListener("change", () => {
-    chrome.storage.sync.set({ selectedFolder: elements.folderSelect.value });
-  });
   elements.settingsToggle.addEventListener("click", () => {
     elements.settingsPanel.hidden = !elements.settingsPanel.hidden;
     elements.settingsToggle.setAttribute("aria-expanded", String(!elements.settingsPanel.hidden));
@@ -118,8 +113,6 @@ async function loadSettings() {
   elements.backendUrl.value = settings.backendUrl;
   elements.obsidianUrl.value = settings.obsidianUrl;
   elements.obsidianToken.value = settings.obsidianToken;
-  elements.folders.value = settings.folders;
-  renderFolders(splitList(settings.folders), settings.selectedFolder);
   setConnectionState(settings.obsidianToken ? "unknown" : "missing");
 }
 
@@ -127,8 +120,8 @@ async function saveSettings() {
   await chrome.storage.sync.set({
     backendUrl: elements.backendUrl.value.trim(),
     obsidianUrl: elements.obsidianUrl.value.trim(),
-    folders: elements.folders.value.trim(),
-    selectedFolder: elements.folderSelect.value
+    folders: DEFAULT_SETTINGS.folders,
+    selectedFolder: DEFAULT_SETTINGS.selectedFolder
   });
   await chrome.storage.local.set({
     obsidianToken: normalizeToken(elements.obsidianToken.value)
@@ -191,17 +184,6 @@ async function testConnection(options = {}) {
   return false;
 }
 
-function renderFolders(folders, selectedFolder) {
-  elements.folderSelect.innerHTML = "";
-  for (const folder of folders.length ? folders : ["Inbox"]) {
-    const option = document.createElement("option");
-    option.value = folder;
-    option.textContent = folder;
-    option.selected = folder === selectedFolder;
-    elements.folderSelect.append(option);
-  }
-}
-
 async function getSettings() {
   const preferences = await chrome.storage.sync.get({
     backendUrl: DEFAULT_SETTINGS.backendUrl,
@@ -220,10 +202,8 @@ async function getSettings() {
     await chrome.storage.sync.remove("obsidianToken");
   }
 
-  const migratedFolders =
-    preferences.folders === OLD_DEFAULT_FOLDERS ? DEFAULT_SETTINGS.folders : preferences.folders;
-  const migratedSelectedFolder =
-    preferences.selectedFolder === "Inbox" ? DEFAULT_SETTINGS.selectedFolder : preferences.selectedFolder;
+  const migratedFolders = DEFAULT_SETTINGS.folders;
+  const migratedSelectedFolder = DEFAULT_SETTINGS.selectedFolder;
 
   if (migratedFolders !== preferences.folders || migratedSelectedFolder !== preferences.selectedFolder) {
     await chrome.storage.sync.set({
@@ -328,16 +308,16 @@ async function savePageNote() {
   }
 
   const settings = await getSettings();
-  const selectedFolder = elements.folderSelect.value || "Inbox";
+  const selectedFolder = DEFAULT_SETTINGS.selectedFolder;
   if (!settings.obsidianToken) {
-    setMessage("Agrega tu token de Obsidian en Conectar.");
+    setMessage("Agrega tu token de Obsidian en Config.");
     openSettings();
     return;
   }
 
   const connected = await testConnection({ silent: true });
   if (!connected) {
-    setMessage("Obsidian no responde. Abre Conectar y pruébalo.");
+    setMessage("Obsidian no responde. Abre Config y pruébalo.");
     openSettings();
     return;
   }
@@ -347,7 +327,7 @@ async function savePageNote() {
 
   try {
     await chrome.storage.sync.set({ selectedFolder });
-    await writePageNoteToObsidian(settings, state.page, state.screenshots, selectedFolder);
+    await writePageNoteToObsidian(settings, state.page, state.screenshots);
     resetComposerAfterSave();
     setMessage(`Apunte guardado en ${selectedFolder}.`, "saved");
   } catch (error) {
@@ -589,16 +569,16 @@ async function saveClip() {
   }
 
   const settings = await getSettings();
-  const selectedFolder = elements.folderSelect.value || "Inbox";
+  const selectedFolder = DEFAULT_SETTINGS.selectedFolder;
   if (!settings.obsidianToken) {
-    setMessage("Agrega tu token de Obsidian en Conectar.");
+    setMessage("Agrega tu token de Obsidian en Config.");
     openSettings();
     return;
   }
 
   const connected = await testConnection({ silent: true });
   if (!connected) {
-    setMessage("Obsidian no responde. Abre Conectar y pruébalo.");
+    setMessage("Obsidian no responde. Abre Config y pruébalo.");
     openSettings();
     return;
   }
@@ -610,10 +590,10 @@ async function saveClip() {
 
   try {
     const freshSettings = await getSettings();
-    const capture = await generateCapture(freshSettings, selectedFolder, end);
+    const capture = await generateCapture(freshSettings, end);
 
     await chrome.storage.sync.set({ selectedFolder });
-    await writeCaptureToObsidian(capture, freshSettings, state.video, state.screenshots, selectedFolder);
+    await writeCaptureToObsidian(capture, freshSettings, state.video, state.screenshots);
     state.lastCapture = {
       kind: "video_extract",
       range: capture.range,
@@ -629,7 +609,7 @@ async function saveClip() {
   }
 }
 
-async function generateCapture(settings, selectedFolder, end) {
+async function generateCapture(settings, end) {
   let captureResponse;
   try {
     captureResponse = await fetch(`${settings.backendUrl.replace(/\/$/, "")}/api/obsync-capture`, {
@@ -641,7 +621,7 @@ async function generateCapture(settings, selectedFolder, end) {
         end,
         userNote: editorMarkdown([]),
         vaultMap: {
-          folders: [selectedFolder, ...splitList(settings.folders).filter((folder) => folder !== selectedFolder)],
+          folders: [DEFAULT_SETTINGS.selectedFolder],
           notes: [],
           tags: ["video", "youtube", "learning"]
         }
@@ -658,10 +638,10 @@ async function generateCapture(settings, selectedFolder, end) {
   return capture;
 }
 
-async function writeCaptureToObsidian(capture, settings, video, screenshots, selectedFolder) {
-  const attachmentFolder = "Attachments/youtube-obsync";
-  const screenshotLinks = [];
+async function writeCaptureToObsidian(capture, settings, video, screenshots) {
   const capturedAt = new Date();
+  const attachmentFolder = captureAttachmentFolder(capturedAt);
+  const screenshotLinks = [];
 
   for (let index = 0; index < screenshots.length; index += 1) {
     const screenshot = screenshots[index];
@@ -672,17 +652,17 @@ async function writeCaptureToObsidian(capture, settings, video, screenshots, sel
   }
 
   for (const note of capture.notes) {
-    const destinationFolder = captureFolder(selectedFolder || note.folder || DEFAULT_SETTINGS.selectedFolder, capturedAt);
+    const destinationFolder = captureFolder(capturedAt);
     const markdown = buildMarkdown(note, capture, video, screenshotLinks, destinationFolder, capturedAt);
     const path = `${destinationFolder}/${datedFilename(currentNoteTitle(note.title), capturedAt)}`;
     await putVaultFile(settings, path, markdown, "text/markdown", "text");
   }
 }
 
-async function writePageNoteToObsidian(settings, page, screenshots, selectedFolder) {
+async function writePageNoteToObsidian(settings, page, screenshots) {
   const capturedAt = new Date();
-  const destinationFolder = captureFolder(selectedFolder || DEFAULT_SETTINGS.selectedFolder, capturedAt);
-  const attachmentFolder = "Attachments/obsync";
+  const destinationFolder = captureFolder(capturedAt);
+  const attachmentFolder = captureAttachmentFolder(capturedAt);
   const screenshotLinks = [];
   const noteSlug = slug(currentNoteTitle(page.title));
 
@@ -1079,13 +1059,6 @@ function setConnectionState(status) {
   elements.connectionDot.parentElement?.setAttribute("title", `Obsidian: ${elements.connection.textContent}`);
 }
 
-function splitList(value) {
-  return String(value || "")
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
 function unique(items) {
   return Array.from(new Set(items.filter(Boolean)));
 }
@@ -1098,8 +1071,12 @@ function dataUrlToBase64(dataUrl) {
   return dataUrl.split(",")[1] || "";
 }
 
-function captureFolder(baseFolder, date) {
-  return `${safeFolder(baseFolder || DEFAULT_SETTINGS.selectedFolder)}/obsync/${monthKey(date)}`;
+function captureFolder(date) {
+  return `${OBSYNC_INBOX_FOLDER}/obsync/${monthKey(date)}`;
+}
+
+function captureAttachmentFolder(date) {
+  return `${OBSYNC_INBOX_FOLDER}/obsync/_attachments/${monthKey(date)}`;
 }
 
 function datedFilename(value, date) {
@@ -1111,14 +1088,6 @@ function datedFilename(value, date) {
 function safeFilename(value) {
   const withoutExtension = String(value || "obsync-note").replace(/\.md$/i, "");
   return `${safePathSegment(withoutExtension) || "obsync-note"}.md`;
-}
-
-function safeFolder(value) {
-  const segments = String(value || "Inbox")
-    .split("/")
-    .map(safePathSegment)
-    .filter(Boolean);
-  return segments.length ? segments.join("/") : "Inbox";
 }
 
 function safePathSegment(value) {

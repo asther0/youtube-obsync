@@ -140,6 +140,29 @@ body {
   gap: 7px;
 }
 
+.vault-destination {
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.vault-destination span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.vault-destination strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 select,
 .note-editor,
 input {
